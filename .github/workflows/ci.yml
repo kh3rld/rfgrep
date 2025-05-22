@@ -60,7 +60,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
       
       - name: Check for unused dependencies
-        uses: cargo-actions/audit-check@v0.6.1
+        uses: cargo-actions/audit-check@v0.7.0
         with:
           args: --deny warnings
 
