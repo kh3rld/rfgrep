@@ -37,9 +37,6 @@ jobs:
       
       - name: Run tests
         run: cargo test --all-features --workspace --verbose
-      
-      - name: Run doctests
-        run: cargo test --doc --workspace
 
   lint:
     name: Lint
