@@ -147,15 +147,17 @@ fn process_file(
     matches: &mut Vec<String>,
     pb: &ProgressBar,
 ) -> Result<()> {
-    if let Commands::Search { extensions, .. } = &cli.command {
-        if let Some(exts) = extensions {
-            if let Some(file_ext) = path.extension().and_then(|e| e.to_str()) {
-                if !exts.iter().any(|e| e == file_ext) {
-                    return Ok(());
-                }
-            } else {
+    if let Commands::Search {
+        extensions: Some(exts),
+        ..
+    } = &cli.command
+    {
+        if let Some(file_ext) = path.extension().and_then(|e| e.to_str()) {
+            if !exts.iter().any(|e| e.eq_ignore_ascii_case(file_ext)) {
                 return Ok(());
             }
+        } else {
+            return Ok(());
         }
     }
     pb.set_message(format!("Processing {}", path.display()));
