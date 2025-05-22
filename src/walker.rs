@@ -1,5 +1,5 @@
-use walkdir::{WalkDir, DirEntry};
 use std::path::Path;
+use walkdir::{DirEntry, WalkDir};
 
 const IGNORED_DIRS: [&str; 4] = [".git", "node_modules", ".idea", "target"];
 
@@ -7,10 +7,12 @@ pub fn walk_dir(path: &Path, recursive: bool, show_hidden: bool) -> impl Iterato
     let walker = WalkDir::new(path)
         .into_iter()
         .filter_entry(move |e| {
-            let is_hidden = e.file_name().to_str()
+            let is_hidden = e
+                .file_name()
+                .to_str()
                 .map(|s| s.starts_with('.'))
                 .unwrap_or(false);
-            
+
             let ignore_status = if show_hidden {
                 !IGNORED_DIRS.contains(&e.file_name().to_str().unwrap_or(""))
             } else {

@@ -40,13 +40,13 @@ pub enum Commands {
     List {
         #[arg(long, short, value_delimiter = ',')]
         extensions: Option<Vec<String>>,
-        
+
         #[arg(long, short)]
         long: bool,
-        
+
         #[arg(long)]
         recursive: bool,
-        
+
         #[arg(long)]
         show_hidden: bool,
     },
