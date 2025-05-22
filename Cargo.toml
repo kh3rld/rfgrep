@@ -28,13 +28,6 @@ categories = [
 maintenance = { status = "actively-developed" }
 github = { repository = "kh3rld/rfgrep", workflow = "CI" }
 
-[lib]
-name = "rfgrep"
-path = "src/lib.rs"
-# Add this if you want to expose a library interface
-# doctest = false
-# test = false
-
 [[bin]]
 name = "rfgrep"
 path = "src/main.rs"
