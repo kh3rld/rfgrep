@@ -4,7 +4,7 @@ use walkdir::{DirEntry, WalkDir};
 const IGNORED_DIRS: [&str; 4] = [".git", "node_modules", ".idea", "target"];
 
 pub fn walk_dir(path: &Path, recursive: bool, show_hidden: bool) -> impl Iterator<Item = DirEntry> {
-    let walker = WalkDir::new(path)
+    WalkDir::new(path)
         .into_iter()
         .filter_entry(move |e| {
             let is_hidden = e
@@ -25,7 +25,5 @@ pub fn walk_dir(path: &Path, recursive: bool, show_hidden: bool) -> impl Iterato
                 e.depth() == 0 || ignore_status
             }
         })
-        .filter_map(|e| e.ok());
-
-    walker
+        .filter_map(|e| e.ok())
 }
