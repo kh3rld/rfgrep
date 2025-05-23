@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use colored::*;
 use regex::Regex;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::time::Instant;
 
@@ -15,7 +15,7 @@ pub struct SearchMatch {
     pub line: String,
     pub context_before: Vec<(usize, String)>,
     pub context_after: Vec<(usize, String)>,
-    pub matched_text: String,
+    // pub matched_text: String,
     pub column_start: usize,
     pub column_end: usize,
 }
@@ -37,7 +37,10 @@ pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
     let start = Instant::now();
     let file = File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
     let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().filter_map(io::Result::ok).collect();
+    let lines: Vec<String> = reader
+        .lines()
+        .collect::<Result<Vec<_>, _>>()
+        .with_context(|| format!("Failed to read lines from {}", path.display()))?;
     let mut output = Vec::new();
     let mut current_context: Vec<SearchMatch> = Vec::new();
 
@@ -65,7 +68,7 @@ pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
                 line: line.clone(),
                 context_before,
                 context_after,
-                matched_text: m.as_str().to_string(),
+                // matched_text: m.as_str().to_string(),
                 column_start: m.start(),
                 column_end: m.end(),
             });

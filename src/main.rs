@@ -164,9 +164,9 @@ fn main() -> Result<()> {
             let adjusted = Byte::from_u64(total_size.load(Ordering::Relaxed))
                 .get_appropriate_unit(byte_unit::UnitType::Binary);
             println!(
-                "{}: {} {}",
+                "{}: {:.2} {}",
                 "Total size".cyan(),
-                format!("{:.2}", adjusted.get_value()),
+                adjusted.get_value(),
                 adjusted.get_unit()
             );
             println!("\n{}", "Extensions:".green().bold());
