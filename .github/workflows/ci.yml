@@ -122,7 +122,11 @@ jobs:
       - name: Generate checksums
         run: |
           cd release
-          sha256sum * > SHA256SUMS
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            shasum -a 256 * > SHA256SUMS
+          else
+            sha256sum * > SHA256SUMS
+          fi
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             certutil -hashfile rfgrep.exe SHA256 > rfgrep.exe.sha256
           fi
