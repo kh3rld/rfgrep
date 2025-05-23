@@ -48,11 +48,7 @@ pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
     for (i, line) in lines.iter().enumerate() {
         if let Some(m) = pattern.find(line) {
             // Get context before
-            let start_idx = if i >= CONTEXT_LINES {
-                i - CONTEXT_LINES
-            } else {
-                0
-            };
+            let start_idx = i.saturating_sub(CONTEXT_LINES);
             let context_before: Vec<(usize, String)> = (start_idx..i)
                 .map(|idx| (idx + 1, lines[idx].clone()))
                 .collect();
