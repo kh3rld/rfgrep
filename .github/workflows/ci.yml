@@ -98,9 +98,9 @@ jobs:
         run: strip target/${{ matrix.target }}/release/rfgrep || true
       
       - name: Package artifacts
+        shell: bash
         run: |
           mkdir -p release
-          cp target/${{ matrix.target }}/release/rfgrep${{ matrix.os == 'windows-latest' && '.exe' || '' }} release/
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             cp target/${{ matrix.target }}/release/rfgrep.exe release/
           else
