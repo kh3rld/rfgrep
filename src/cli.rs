@@ -34,6 +34,9 @@ pub enum Commands {
         #[arg(long)]
         copy: bool,
 
+        #[arg(long, short)]
+        recursive: bool,
+
         #[arg(long, short, value_delimiter = ',')]
         extensions: Option<Vec<String>>,
     },
