@@ -1,7 +1,7 @@
 use byte_unit::Byte;
 use colored::*;
-use std::path::Path;
 use rayon::prelude::*;
+use std::path::Path;
 
 use crate::{cli::Cli, processor};
 
@@ -71,7 +71,10 @@ pub fn print_long_format(files: &[FileInfo]) {
         };
 
         let path_str = if file.path.to_string_lossy().len() > 57 {
-            format!("...{}", file.path.file_name().unwrap_or_default().to_string_lossy())
+            format!(
+                "...{}",
+                file.path.file_name().unwrap_or_default().to_string_lossy()
+            )
         } else {
             file.path.display().to_string()
         };
@@ -86,29 +89,28 @@ pub fn print_long_format(files: &[FileInfo]) {
     });
 }
 
-pub fn print_extension_stats(extension_counts: &std::collections::HashMap<String, usize>, total_size: u64) {
+pub fn print_extension_stats(
+    extension_counts: &std::collections::HashMap<String, usize>,
+    total_size: u64,
+) {
     let mut ext_stats: Vec<_> = extension_counts.iter().collect();
     ext_stats.par_sort_by(|a, b| b.1.cmp(a.1));
 
     let separator = "-".repeat(50).dimmed();
     println!("\n{}", separator);
     println!("{}", "Summary:".bold());
-    
+
     let total_files: usize = extension_counts.values().sum();
     println!(
         "{}: {}",
         "Total files".bold(),
         total_files.to_string().replace(",", "_")
     );
-    println!(
-        "{}: {}",
-        "Total size".bold(),
-        format_size(total_size)
-    );
+    println!("{}: {}", "Total size".bold(), format_size(total_size));
 
     println!("\n{}", separator);
     println!("{}:", "Extensions".bold());
-    
+
     let max_ext_len = ext_stats
         .par_iter()
         .map(|(ext, _)| ext.len())

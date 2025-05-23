@@ -4,6 +4,7 @@ mod list;
 mod processor;
 mod walker;
 
+use anyhow::Context;
 use anyhow::Result;
 use byte_unit::Byte;
 use clap::Parser;
@@ -18,20 +19,20 @@ use rayon::prelude::*;
 use regex::Regex;
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use walker::walk_dir;
-use anyhow::Context;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     setup_logging(&cli)?;
 
-    let pb = ProgressBar::new_spinner()
-        .with_style(ProgressStyle::default_spinner()
+    let pb = ProgressBar::new_spinner().with_style(
+        ProgressStyle::default_spinner()
             .template("{spinner:.green} [{elapsed_precise}] {msg}")
             .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"));
+            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+    );
 
     match &cli.command {
         Commands::Search {
@@ -72,7 +73,12 @@ fn main() -> Result<()> {
             if matches.is_empty() {
                 println!("{}", "No matches found".yellow());
             } else {
-                println!("\n{} {} {}", "Found".green(), matches.len(), "matches:".green());
+                println!(
+                    "\n{} {} {}",
+                    "Found".green(),
+                    matches.len(),
+                    "matches:".green()
+                );
                 for m in &matches {
                     println!("{}", "-".repeat(80).dimmed());
                     println!("{}", m);
@@ -80,8 +86,11 @@ fn main() -> Result<()> {
             }
 
             if *copy && !matches.is_empty() {
-                let mut clipboard = arboard::Clipboard::new().context("Failed to access clipboard")?;
-                clipboard.set_text(matches.join("\n")).context("Failed to copy results to clipboard")?;
+                let mut clipboard =
+                    arboard::Clipboard::new().context("Failed to access clipboard")?;
+                clipboard
+                    .set_text(matches.join("\n"))
+                    .context("Failed to copy results to clipboard")?;
                 println!("\n{}", "Results copied to clipboard!".green());
             }
         }
@@ -98,7 +107,7 @@ fn main() -> Result<()> {
 
             // Use parallel iterator for file collection
             let entries: Vec<_> = walk_dir(&cli.path, *recursive, *show_hidden).collect();
-            
+
             entries.par_iter().for_each(|entry| {
                 let path = entry.path();
                 if path.is_dir() {
@@ -199,12 +208,7 @@ fn build_regex(pattern: &str, mode: &SearchMode) -> Result<Regex> {
     Regex::new(&pattern).map_err(Into::into)
 }
 
-fn process_file(
-    path: &Path,
-    cli: &Cli,
-    regex: &Regex,
-    pb: &ProgressBar,
-) -> Result<Vec<String>> {
+fn process_file(path: &Path, cli: &Cli, regex: &Regex, pb: &ProgressBar) -> Result<Vec<String>> {
     if let Commands::Search {
         extensions: Some(exts),
         ..
