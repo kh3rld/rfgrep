@@ -2,6 +2,8 @@
 
 A command-line utility for recursively searching and listing files with advanced filtering capabilities. Built in Rust.
 
+[![CI](https://github.com/kh3rld/rfgrep/actions/workflows/ci.yml/badge.svg)](https://github.com/kh3rld/rfgrep/actions/workflows/ci.yml)
+
 ## Features
 
 - **Advanced Search**
