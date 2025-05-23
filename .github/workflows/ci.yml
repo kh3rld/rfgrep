@@ -2,13 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  release:
+    types: [published]
 
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
+  CARGO_INCREMENTAL: 0  
 
 jobs:
   test:
@@ -17,7 +20,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, 1.87.0]  # MSRV (Minimum Supported Rust Version)
+        rust: [stable, 1.87.0]  # MSRV
     steps:
       - uses: actions/checkout@v4
       
@@ -61,9 +64,23 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
+  build:
+    name: Build Release
+    needs: [test, lint]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: rfgrep-linux
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: rfgrep-windows
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: rfgrep-macos
     steps:
       - uses: actions/checkout@v4
       
@@ -71,18 +88,92 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
+          target: ${{ matrix.target }}
       
-      - name: Build docs
-        run: cargo doc --no-deps --all-features
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
       
-      - name: Validate docs
-        run: cargo doc --no-deps --all-features --document-private-items
+      - name: Strip debug symbols (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: strip target/${{ matrix.target }}/release/rfgrep || true
+      
+      - name: Package artifacts
+        run: |
+          mkdir -p release
+          cp target/${{ matrix.target }}/release/rfgrep${{ matrix.os == 'windows-latest' && '.exe' || '' }} release/
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/rfgrep.exe release/
+          fi
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            cp target/${{ matrix.target }}/release/rfgrep release/
+          fi
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            cp target/${{ matrix.target }}/release/rfgrep release/
+          fi
+          # Create a zip file for Windows
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            zip -r release/rfgrep.zip release/rfgrep.exe
+          fi
+          # Create a tar.gz file for Linux/macOS
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            tar -czf release/rfgrep.tar.gz -C release rfgrep
+          fi
+      
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            certutil -hashfile rfgrep.exe SHA256 > rfgrep.exe.sha256
+          fi
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: release/
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      
+      - name: Prepare release assets
+        run: |
+          mkdir -p dist
+          # Organize by platform
+          for artifact in artifacts/*; do
+            platform=$(basename $artifact | sed 's/rfgrep-//')
+            mkdir -p dist/$platform
+            cp $artifact/* dist/$platform/
+          done
+          
+          # Combine checksums
+          find artifacts -name "SHA256SUMS" -exec cat {} \; > dist/SHA256SUMS
+          find artifacts -name "*.sha256" -exec cat {} \; > dist/SHA256SUMS.windows
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/**/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+          discussion_category_name: "Announcements"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    name: Publish
-    needs: [test, lint, docs]
+    name: Publish to Crates.io
+    needs: [test, lint]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
       
