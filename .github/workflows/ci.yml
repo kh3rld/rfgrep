@@ -97,21 +97,18 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: strip target/${{ matrix.target }}/release/rfgrep || true
       
-      - name: Package artifacts
+      - name: Package artifacts (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           mkdir -p release
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp target/${{ matrix.target }}/release/rfgrep.exe release/
-          else
-            cp target/${{ matrix.target }}/release/rfgrep release/
-          fi
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            cp target/${{ matrix.target }}/release/rfgrep release/
-          fi
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            cp target/${{ matrix.target }}/release/rfgrep release/
-          fi
+          cp target/${{ matrix.target }}/release/rfgrep release/
+      - name: Package artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          mkdir release
+          Copy-Item "target\${{ matrix.target }}\release\rfgrep.exe" release\
       
       - name: Generate checksums
         run: |
