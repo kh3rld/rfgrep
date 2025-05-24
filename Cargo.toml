@@ -1,6 +1,6 @@
 [package]
 name = "rfgrep"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Recursive file grep utility with advanced filtering - search, list, and analyze text files with regex support"
 homepage = "https://github.com/kh3rld/rfgrep"
