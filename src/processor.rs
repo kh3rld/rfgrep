@@ -15,7 +15,6 @@ pub struct SearchMatch {
     pub line: String,
     pub context_before: Vec<(usize, String)>,
     pub context_after: Vec<(usize, String)>,
-    // pub matched_text: String,
     pub column_start: usize,
     pub column_end: usize,
 }
@@ -44,16 +43,13 @@ pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
     let mut output = Vec::new();
     let mut current_context: Vec<SearchMatch> = Vec::new();
 
-    // Find all matches with context
     for (i, line) in lines.iter().enumerate() {
         if let Some(m) = pattern.find(line) {
-            // Get context before
             let start_idx = i.saturating_sub(CONTEXT_LINES);
             let context_before: Vec<(usize, String)> = (start_idx..i)
                 .map(|idx| (idx + 1, lines[idx].clone()))
                 .collect();
 
-            // Get context after
             let end_idx = (i + CONTEXT_LINES + 1).min(lines.len());
             let context_after: Vec<(usize, String)> = ((i + 1)..end_idx)
                 .map(|idx| (idx + 1, lines[idx].clone()))
@@ -64,14 +60,12 @@ pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
                 line: line.clone(),
                 context_before,
                 context_after,
-                // matched_text: m.as_str().to_string(),
                 column_start: m.start(),
                 column_end: m.end(),
             });
         }
     }
 
-    // Format matches with context
     if !current_context.is_empty() {
         let elapsed = start.elapsed();
         output.push(format!("\n{} {}:", "File".green().bold(), path.display()));
@@ -85,7 +79,6 @@ pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
         for m in current_context {
             output.push("-".repeat(80).dimmed().to_string());
 
-            // Print context before
             for (num, line) in m.context_before {
                 output.push(format!(
                     "  {} │ {}",
@@ -94,7 +87,6 @@ pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
                 ));
             }
 
-            // Print matching line with highlighted match
             let before = &m.line[..m.column_start];
             let matched = &m.line[m.column_start..m.column_end];
             let after = &m.line[m.column_end..];
@@ -106,7 +98,6 @@ pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
                 after
             ));
 
-            // Print context after
             for (num, line) in m.context_after {
                 output.push(format!(
                     "  {} │ {}",
