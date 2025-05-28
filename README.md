@@ -2,7 +2,10 @@
 
 A command-line utility for recursively searching and listing files with advanced filtering capabilities. Built in Rust.
 
+[<img alt="crates.io" src="https://img.shields.io/crates/v/rfgrep.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/rfgrep)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-rfgrep-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/rfgrep)
 [![CI](https://github.com/kh3rld/rfgrep/actions/workflows/ci.yml/badge.svg)](https://github.com/kh3rld/rfgrep/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/kh3rld/rfgrep)](https://github.com/kh3rld/rfgrep/blob/main/LICENSE)
 
 ## Features
 
@@ -25,20 +28,37 @@ A command-line utility for recursively searching and listing files with advanced
   - Logging to file
   - Progress indicators
 
+<!-- ## Performance
+
+![Benchmark Results](https://github.com/kh3rld/rfgrep/raw/main/benches/comparison.png)
+
+Latest benchmarks (Linux x86_64):
+```bash
+# Updated automatically by CI
+cat benches/latest.txt -->
+
 ## Installation
 
-### From Source
+Assuming you have [Rust installed][Rust], run:
 
-```bash
-git clone https://github.com/kh3rld/rfgrep.git
-cd rfgrep
-cargo install --path .
-```
+[Rust]: https://www.rust-lang.org/
 
 ### Via Cargo
 
 ```bash
 cargo install rfgrep
+```
+
+### From GitHub
+```bash
+cargo install --git https://github.com/kh3rld/rfgrep.git
+```
+
+### From Source
+
+```bash
+git clone https://github.com/kh3rld/rfgrep.git
+cargo build --release
 ```
 
 ## Usage
