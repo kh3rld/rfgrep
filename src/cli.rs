@@ -1,26 +1,30 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(author, version, about, long_about)]
+#[clap(author, version, about, long_about = None)]
 pub struct Cli {
-    #[arg(default_value = ".")]
+    #[clap(default_value = ".")]
     pub path: PathBuf,
 
-    #[command(subcommand)]
-    pub command: Commands,
+    #[clap(long, value_parser, default_value_t = false)]
+    pub verbose: bool,
 
-    #[arg(long)]
-    pub max_size: Option<u64>,
+    #[clap(long, value_parser)]
+    pub log: Option<PathBuf>,
 
-    #[arg(long)]
-    pub skip_binary: bool,
-
-    #[arg(long)]
+    #[clap(long, value_parser, default_value_t = false)]
     pub dry_run: bool,
 
-    #[arg(long)]
-    pub log: Option<PathBuf>,
+    #[clap(long, value_parser)]
+    pub max_size: Option<usize>,
+
+    #[clap(long, value_parser, default_value_t = false)]
+    pub skip_binary: bool,
+
+    #[clap(subcommand)]
+    pub command: Commands,
 }
 
 #[derive(Subcommand)]
@@ -28,36 +32,44 @@ pub enum Commands {
     Search {
         pattern: String,
 
-        #[arg(value_enum, default_value_t = SearchMode::Regex)]
+        #[clap(value_parser, default_value_t = SearchMode::Text)]
         mode: SearchMode,
 
-        #[arg(long)]
+        #[clap(long, value_parser, default_value_t = false)]
         copy: bool,
 
-        #[arg(long, short)]
-        recursive: bool,
-
-        #[arg(long, short, value_delimiter = ',')]
+        #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
+
+        #[clap(short, long, value_parser, default_value_t = false)]
+        recursive: bool,
     },
     List {
-        #[arg(long, short, value_delimiter = ',')]
+        #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
-
-        #[arg(long, short)]
+        #[clap(short, long, value_parser, default_value_t = false)]
         long: bool,
-
-        #[arg(long)]
+        #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
-
-        #[arg(long)]
+        #[clap(long, value_parser, default_value_t = false)]
         show_hidden: bool,
     },
 }
 
-#[derive(ValueEnum, Clone, Debug)]
+#[derive(ValueEnum, Clone, Debug, Default)]
 pub enum SearchMode {
-    Regex,
+    #[default]
     Text,
     Word,
+    Regex,
+}
+
+impl fmt::Display for SearchMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SearchMode::Text => write!(f, "text"),
+            SearchMode::Word => write!(f, "word"),
+            SearchMode::Regex => write!(f, "regex"),
+        }
+    }
 }
