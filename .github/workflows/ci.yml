@@ -1,3 +1,5 @@
+# This is the main CI workflow that runs the test suite on all pushes to main and all pull requests.
+# It runs the following Jobs
 name: CI
 
 on:
@@ -174,7 +176,7 @@ jobs:
     name: Publish to Crates.io
     needs: [test, lint]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/release' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
       
