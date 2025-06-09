@@ -33,4 +33,4 @@ jobs:
           
       - name: Compare to main
         run: |
-          cargo bench --bench compare -- --baseline main
+          cargo bench --bench -- --baseline main
