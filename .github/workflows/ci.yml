@@ -89,10 +89,56 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.target }}
-      
+
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
-      
+
+      - name: Generate man page
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir -p man
+          cat > man/rfgrep.1 <<'EOF'
+          .TH RFGREP 1 "June 2025" "rfgrep 0.1.0" "User Commands"
+          .SH NAME
+          rfgrep \- recursive file grep utility
+          .SH SYNOPSIS
+          rfgrep [OPTIONS] PATTERN [PATH...]
+          .SH DESCRIPTION
+          rfgrep is a fast, recursive grep tool written in Rust.
+          .SH OPTIONS
+          .TP
+          \-h, \-\-help
+          Show help information.
+          .TP
+          \-v, \-\-version
+          Show version information.
+          # Add more detailed man page content here...
+          EOF
+          gzip -f man/rfgrep.1
+
+      - name: Generate completions
+        run: |
+          mkdir -p completions
+          cargo run -- completions bash > completions/rfgrep.bash
+          cargo run -- completions zsh > completions/rfgrep.zsh
+          cargo run -- completions fish > completions/rfgrep.fish
+          cargo run -- completions powershell > completions/rfgrep.ps1
+      - name: Create release directory
+        run: mkdir -p release
+      - name: Copy binary to release directory
+        run: cp target/${{ matrix.target }}/release/rfgrep release/
+      - name: Prepare additional assets
+        run: |
+          echo "${{ github.ref_name }}" > release/VERSION
+          curl -sSL https://raw.githubusercontent.com/kh3rld/rfgrep/main/LICENSE > release/LICENSE
+          mkdir -p examples
+          echo "rfgrep search 'pattern' --extensions rs,toml" > examples/usage.txt
+      - name: Copy additional files
+        run: |
+          cp -r examples release/
+          cp -r man release/
+          cp -r completions release/
+
       - name: Strip debug symbols (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: strip target/${{ matrix.target }}/release/rfgrep || true
@@ -103,13 +149,23 @@ jobs:
         run: |
           mkdir -p release
           cp target/${{ matrix.target }}/release/rfgrep release/
+          cp man/rfgrep.1.gz release/ || true
+          cp completions/* release/ || true
+          cp examples/usage.txt release/ || true
+          cp release/VERSION release/
+          cp release/LICENSE release/
+      
       - name: Package artifacts (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           mkdir release
           Copy-Item "target\${{ matrix.target }}\release\rfgrep.exe" release\
-      
+          Copy-Item completions\* release\ -ErrorAction SilentlyContinue
+          Copy-Item examples\usage.txt release\ -ErrorAction SilentlyContinue
+          Copy-Item release\VERSION release\
+          Copy-Item release\LICENSE release\
+
       - name: Generate checksums (Unix)
         if: runner.os != 'Windows'
         shell: bash
@@ -127,7 +183,7 @@ jobs:
         run: |
           cd release
           certutil -hashfile rfgrep.exe SHA256 > rfgrep.exe.sha256
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -158,7 +214,7 @@ jobs:
           # Combine checksums
           find artifacts -name "SHA256SUMS" -exec cat {} \; > dist/SHA256SUMS
           find artifacts -name "*.sha256" -exec cat {} \; > dist/SHA256SUMS.windows
-      
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -174,7 +230,7 @@ jobs:
     name: Publish to Crates.io
     needs: [test, lint]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/release' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
       
