@@ -15,6 +15,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y hyperfine valgrind strace ripgrep fd-find
+
+      - name: Build project
+        run: cargo build --release --all-features
           
       - name: Run benchmarks
         run: |
@@ -30,4 +33,4 @@ jobs:
           
       - name: Compare to main
         run: |
-          cargo bench --bench compare -- --baseline main
+          cargo bench --bench -- --baseline main
