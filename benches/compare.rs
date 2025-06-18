@@ -17,7 +17,7 @@ fn run_external_command(command: &str, args: &[&str], env: Option<&str>) -> std:
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let cli = Cli::parse_from(&["rfgrep", "search", "pattern1", "."]);
+    let cli = Cli::parse_from(["rfgrep", "search", "pattern1", "."]);
     let config = AppConfig::from_cli(&cli);
 
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
