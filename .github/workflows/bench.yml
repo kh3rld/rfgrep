@@ -33,7 +33,7 @@ jobs:
           
       - name: Run benchmarks
         run: |
-          cargo bench --all-features -- --save-baseline main
+          cargo bench
           
       - name: Upload results
         uses: actions/upload-artifact@v4
