@@ -10,6 +10,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bench-
       
       - name: Install dependencies
         run: |
@@ -33,4 +46,4 @@ jobs:
           
       - name: Compare to main
         run: |
-          cargo bench --bench -- --baseline main
+          cargo bench --bench compare -- --baseline main
