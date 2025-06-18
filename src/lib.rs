@@ -9,6 +9,7 @@ pub use clap::Parser;
 pub use cli::{Cli, Commands, SearchMode};
 pub use list::{FileInfo, print_long_format, print_simple_list, should_list_file};
 pub use processor::{SearchMatch, is_binary, search_file};
+use std::path::Path;
 pub use std::path::PathBuf;
 pub use walker::walk_dir;
 
@@ -41,7 +42,7 @@ pub fn run_external_command(
     cmd.status()?;
     Ok(())
 }
-pub fn run_benchmarks(config: &AppConfig, test_dir: &PathBuf) -> Result<()> {
+pub fn run_benchmarks(config: &AppConfig, test_dir: &Path) -> Result<()> {
     println!("Warming up rfgrep...");
     run_external_command(
         config.rfgrep_exe.to_str().unwrap(),
