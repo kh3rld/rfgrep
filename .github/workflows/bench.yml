@@ -1,49 +1,42 @@
 name: Benchmarks
 on: 
-  schedule:
-    - cron: '0 0 * * 0' 
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'
 
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-C target-cpu=native"
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo dependencies and build artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-bench-
       
-      - name: Install dependencies
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          components: llvm-tools-preview, rustfmt, clippy
+          
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-bench-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo
+            target
+            
+      - name: Install competitors
         run: |
           sudo apt-get update
-          sudo apt-get install -y hyperfine valgrind strace ripgrep fd-find
-
-      - name: Build project
-        run: cargo build --release --all-features
+          sudo apt-get install -y ripgrep fd-find grep
           
       - name: Run benchmarks
         run: |
-          mkdir -p results
-          chmod +x benches/run.sh
-          ./benches/run.sh
+          cargo bench --all-features -- --save-baseline main
           
       - name: Upload results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: benchmark-results
-          path: results/
-          
-      - name: Compare to main
-        run: |
-          cargo bench --bench compare -- --baseline main
+          path: target/criterion
