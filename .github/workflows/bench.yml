@@ -36,7 +36,7 @@ jobs:
           cargo bench --all-features -- --save-baseline main
           
       - name: Upload results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: target/criterion
