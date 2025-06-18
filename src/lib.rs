@@ -1,16 +1,16 @@
 pub mod cli;
+pub mod clipboard;
+pub mod list;
 pub mod processor;
 pub mod walker;
-pub mod list;
-pub mod clipboard;
 
-pub use cli::{Cli, Commands, SearchMode};
-pub use processor::{is_binary, search_file, SearchMatch};
-pub use walker::{walk_dir};
-pub use list::{should_list_file, FileInfo, print_simple_list, print_long_format};
 pub use anyhow::{Context, Result};
-pub use std::path::PathBuf;
 pub use clap::Parser;
+pub use cli::{Cli, Commands, SearchMode};
+pub use list::{FileInfo, print_long_format, print_simple_list, should_list_file};
+pub use processor::{SearchMatch, is_binary, search_file};
+pub use std::path::PathBuf;
+pub use walker::walk_dir;
 
 pub struct AppConfig {
     pub rfgrep_exe: PathBuf,
@@ -21,14 +21,18 @@ impl AppConfig {
         let rfgrep_exe = cli.path.join("rfgrep");
         let results_dir = cli.path.join("results");
         std::fs::create_dir_all(&results_dir).expect("Failed to create results directory");
-        
+
         AppConfig {
             rfgrep_exe,
             results_dir,
         }
     }
 }
-pub fn run_external_command(command: &str, args: &[&str], env: Option<&str>) -> std::io::Result<()> {
+pub fn run_external_command(
+    command: &str,
+    args: &[&str],
+    env: Option<&str>,
+) -> std::io::Result<()> {
     let mut cmd = std::process::Command::new(command);
     cmd.args(args);
     if let Some(env_var) = env {
