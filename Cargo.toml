@@ -50,6 +50,7 @@ serde = { version = "1.0", features = ["derive"] }
 walkdir = "2.3"
 simplelog = "0.12"
 numfmt = "1.1.1"
+memmap2 = "0.9"
 
 # Development dependencies
 [dev-dependencies]
