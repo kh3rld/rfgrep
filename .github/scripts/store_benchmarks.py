@@ -49,6 +49,8 @@ def store_benchmarks(conn, results_dir, commit_sha, branch):
                 else:
                     continue
                 for bench in benchmarks:
+                    if not isinstance(bench, dict):
+                        continue
                     name = bench.get('name', 'unknown')
                     mean = bench.get('mean', {}).get('point_estimate')
                     if mean is not None:
