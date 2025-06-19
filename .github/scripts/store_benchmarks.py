@@ -42,8 +42,13 @@ def store_benchmarks(conn, results_dir, commit_sha, branch):
                 path = os.path.join(root, file)
                 with open(path) as f:
                     data = json.load(f)
-                # Criterion JSON structure: {"benchmarks": [{"name": ..., "mean": {"point_estimate": ...}, ...}]}
-                for bench in data.get('benchmarks', []):
+                if isinstance(data, dict) and 'benchmarks' in data:
+                    benchmarks = data['benchmarks']
+                elif isinstance(data, list):
+                    benchmarks = data
+                else:
+                    continue
+                for bench in benchmarks:
                     name = bench.get('name', 'unknown')
                     mean = bench.get('mean', {}).get('point_estimate')
                     if mean is not None:
