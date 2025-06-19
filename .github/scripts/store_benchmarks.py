@@ -36,12 +36,17 @@ def ensure_tables(conn):
     conn.commit()
 
 def store_benchmarks(conn, results_dir, commit_sha, branch):
+    found_benchmarks = False
     for root, _, files in os.walk(results_dir):
         for file in files:
             if file.endswith('.json'):
                 path = os.path.join(root, file)
                 with open(path) as f:
-                    data = json.load(f)
+                    try:
+                        data = json.load(f)
+                    except Exception as e:
+                        print(f"Warning: Could not parse {path}: {e}")
+                        continue
                 if isinstance(data, dict) and 'benchmarks' in data:
                     benchmarks = data['benchmarks']
                 elif isinstance(data, list):
@@ -58,6 +63,9 @@ def store_benchmarks(conn, results_dir, commit_sha, branch):
                             'INSERT INTO benchmarks (commit_sha, branch, metric_category, metric_name, value) VALUES (?, ?, ?, ?, ?)',
                             (commit_sha, branch, 'criterion', name, mean)
                         )
+                        found_benchmarks = True
+    if not found_benchmarks:
+        print(f"No benchmark data found in {results_dir}. If this is the first run, this is expected.")
     conn.execute('INSERT INTO runs (commit_sha, branch) VALUES (?, ?)', (commit_sha, branch))
     conn.commit()
 
