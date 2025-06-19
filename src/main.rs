@@ -42,7 +42,11 @@ fn main() -> Result<()> {
             extensions: _,
             recursive,
         } => {
-            let regex = build_regex(pattern, mode)?;
+            let regex = if matches!(mode, SearchMode::Regex) {
+                processor::get_or_compile_regex(pattern)?
+            } else {
+                build_regex(pattern, mode)?
+            };
             let matches = Mutex::new(Vec::new());
 
             let files: Vec<_> = walk_dir(&cli.path, *recursive, false)
