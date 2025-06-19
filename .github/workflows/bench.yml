@@ -13,11 +13,10 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable 
         with:
           toolchain: nightly
-          components: llvm-tools-preview, rustfmt, clippy
-          
+          components: llvm-tools-preview 
       - name: Cache
         uses: actions/cache@v3
         with:
@@ -26,17 +25,75 @@ jobs:
             ~/.cargo
             target
             
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' 
+
+      - name: Install Python dependencies
+        run: |
+          pip install plotly matplotlib pandas sqlalchemy # Add any other dependencies your scripts need
+          # Example: pip install -r .github/scripts/requirements.txt
+
       - name: Install competitors
         run: |
           sudo apt-get update
           sudo apt-get install -y ripgrep fd-find grep
           
+      - name: Download previous benchmark database
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark-database
+          path: benchmarks/ 
+        continue-on-error: true 
+
       - name: Run benchmarks
         run: |
           cargo bench
           
-      - name: Upload results
+      - name: Process benchmarks and update database
+        run: |
+          # This script parses target/criterion, correlates with git info, and updates benchmarks/benchmarks.db
+          # Ensure benchmarks/ directory exists if the script doesn't create it
+          mkdir -p benchmarks
+          python .github/scripts/store_benchmarks.py \
+            --results-dir target/criterion \
+            --db-file benchmarks/benchmarks.db \
+            --commit-sha ${{ github.sha }} \
+            --branch ${{ github.ref_name }}
+        # env:
+          # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate benchmark visualizations
+        run: |
+          # This script queries benchmarks/benchmarks.db and generates reports/plots
+          mkdir -p benchmark_reports 
+          python .github/scripts/generate_visualizations.py \
+            --db-file benchmarks/benchmarks.db \
+            --output-dir ./benchmark_reports
+
+      - name: Check for performance regressions
+        run: |
+          # This script compares current benchmarks against a baseline from the DB
+          # It should exit with a non-zero status code if a regression is detected
+          python .github/scripts/check_regressions.py \
+            --db-file benchmarks/benchmarks.db \
+            --current-commit ${{ github.sha }} \
+            --baseline-branch main # Or configure as needed (e.g., previous successful run)
+            # --threshold-percentage 5 # Example: fail if 5% slower
+
+      - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-results
-          path: target/criterion
+          name: benchmark-artifacts-${{ github.run_id }} 
+          path: |
+            target/criterion
+            benchmark_reports/
+          retention-days: 90
+      
+      - name: Upload persistent benchmark database
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-database 
+          path: benchmarks/benchmarks.db
+          retention-days: 365 
