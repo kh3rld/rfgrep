@@ -1,3 +1,5 @@
+# This is the main CI workflow that runs the test suite on all pushes to main and all pull requests.
+# It runs the following Jobs
 name: CI
 
 on:
@@ -197,7 +199,7 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
       

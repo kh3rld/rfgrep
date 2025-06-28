@@ -42,18 +42,19 @@ fn main() -> Result<()> {
             extensions: _,
             recursive,
         } => {
-            let regex = build_regex(pattern, mode)?;
+            let regex = if matches!(mode, SearchMode::Regex) {
+                processor::get_or_compile_regex(pattern)?
+            } else {
+                build_regex(pattern, mode)?
+            };
             let matches = Mutex::new(Vec::new());
 
-            // Collect all files first with parallel iterator
             let files: Vec<_> = walk_dir(&cli.path, *recursive, false)
                 .filter(|entry| entry.file_type().is_file())
                 .collect();
 
-            // Show total files to process
             pb.set_message(format!("Processing {} files...", files.len()));
 
-            // Process files in parallel using rayon with improved chunking
             files.par_chunks(100).for_each(|chunk| {
                 for entry in chunk {
                     let path = entry.path();
@@ -66,7 +67,6 @@ fn main() -> Result<()> {
                 }
             });
 
-            // Get all matches and sort them
             let mut matches = matches.into_inner().unwrap();
             matches.sort();
 
@@ -105,7 +105,6 @@ fn main() -> Result<()> {
             let total_size = AtomicU64::new(0);
             let extension_counts = Mutex::new(std::collections::HashMap::new());
 
-            // Use parallel iterator for file collection
             let entries: Vec<_> = walk_dir(&cli.path, *recursive, *show_hidden).collect();
 
             entries.par_iter().for_each(|entry| {
@@ -132,7 +131,6 @@ fn main() -> Result<()> {
                         is_binary: processor::is_binary(path),
                     };
 
-                    // Use atomic operations for thread-safe counting
                     {
                         let mut counts_locked = extension_counts.lock().unwrap();
                         *counts_locked.entry(ext).or_insert(0) += 1;
@@ -145,7 +143,6 @@ fn main() -> Result<()> {
                 }
             });
 
-            // Sort files by size for consistent output
             let mut files = files.into_inner().unwrap();
             files.par_sort_by_key(|f| f.size);
 
@@ -154,11 +151,9 @@ fn main() -> Result<()> {
             } else {
                 print_simple_list(&files);
             }
-            // Sort extension counts by frequency
             let extension_counts_map = extension_counts.into_inner().unwrap();
             let mut ext_counts: Vec<_> = extension_counts_map.into_iter().collect();
             ext_counts.par_sort_by(|a, b| b.1.cmp(&a.1));
-            // Print summary with colors and human-readable sizes
             println!("\n{}", "Summary:".green().bold());
             println!("{}: {}", "Total files".cyan(), files.len());
             let adjusted = Byte::from_u64(total_size.load(Ordering::Relaxed))
@@ -226,13 +221,11 @@ fn process_file(path: &Path, cli: &Cli, regex: &Regex, pb: &ProgressBar) -> Resu
     let file_name = path.display().to_string();
     pb.set_message(format!("Processing {}", file_name));
 
-    // Handle dry run mode
     if cli.dry_run {
         info!("Dry run: {}", file_name);
         return Ok(vec![]);
     }
 
-    // Check file size limits
     if let Some(max) = cli.max_size {
         if let Ok(metadata) = path.metadata() {
             let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
@@ -243,12 +236,10 @@ fn process_file(path: &Path, cli: &Cli, regex: &Regex, pb: &ProgressBar) -> Resu
         }
     }
 
-    // Check for binary files
     if cli.skip_binary && is_binary(path) {
         warn!("Skipping binary file: {}", file_name);
         return Ok(vec![]);
     }
 
-    // Perform the search with improved error context
     search_file(path, regex).with_context(|| format!("Failed to search in file: {}", file_name))
 }
