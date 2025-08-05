@@ -75,8 +75,7 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Search for patterns in files with advanced filtering
-    #[clap(
-        after_help = r#"
+    #[clap(after_help = r#"
 SEARCH MODES:
   text    - Plain text search (default)
   word    - Whole word matching with boundaries
@@ -100,8 +99,7 @@ PERFORMANCE TIPS:
   • Limit file size with --max-size
   • Use --dry-run to preview files first
   • Combine --extensions with --recursive for targeted search
-"#
-    )]
+"#)]
     Search {
         /// Pattern to search for in files
         pattern: String,
@@ -114,6 +112,50 @@ PERFORMANCE TIPS:
         #[clap(long, value_parser, default_value_t = false)]
         copy: bool,
 
+        /// Output format for results
+        #[clap(long, value_enum, default_value_t = OutputFormat::Text)]
+        output_format: OutputFormat,
+
+        /// Comma-separated list of file extensions to include
+        #[clap(long, value_parser, use_value_delimiter = true)]
+        extensions: Option<Vec<String>>,
+
+        /// Recursively search subdirectories
+        #[clap(short, long, value_parser, default_value_t = false)]
+        recursive: bool,
+    },
+
+    /// Interactive search mode with real-time filtering
+    #[clap(after_help = r#"
+INTERACTIVE FEATURES:
+  • Real-time search with live filtering
+  • Keyboard navigation and commands
+  • Result highlighting and selection
+  • Save results to file
+  • Memory-optimized processing
+
+COMMANDS:
+  n/new   - Start a new search
+  f/filter - Filter current results
+  c/clear - Clear all filters
+  s/save  - Save results to file
+  q/quit  - Exit interactive mode
+
+EXAMPLES:
+  # Start interactive search
+  rfgrep interactive "error" --extensions rs
+
+  # Interactive search with specific algorithm
+  rfgrep interactive "test" --algorithm boyer-moore --recursive
+"#)]
+    Interactive {
+        /// Pattern to search for in files
+        pattern: String,
+
+        /// Search algorithm to use
+        #[clap(long, value_enum, default_value_t = InteractiveAlgorithm::BoyerMoore)]
+        algorithm: InteractiveAlgorithm,
+
         /// Comma-separated list of file extensions to include
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
@@ -123,8 +165,7 @@ PERFORMANCE TIPS:
         recursive: bool,
     },
     /// List files with detailed information and statistics
-    #[clap(
-        after_help = r#"
+    #[clap(after_help = r#"
 OUTPUT FORMATS:
   Simple  - Just file paths (default)
   Long    - Detailed table with size, type, and binary info
@@ -148,28 +189,26 @@ FEATURES:
   • Size filtering and formatting
   • Hidden file handling
   • Recursive directory traversal
-"#
-    )]
+"#)]
     List {
         /// Comma-separated list of file extensions to include
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
-        
+
         /// Show detailed output with size and type information
         #[clap(short, long, value_parser, default_value_t = false)]
         long: bool,
-        
+
         /// Recursively list files in subdirectories
         #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
-        
+
         /// Include hidden files and directories
         #[clap(long, value_parser, default_value_t = false)]
         show_hidden: bool,
     },
     /// Generate shell completion scripts for better CLI experience
-    #[clap(
-        after_help = r#"
+    #[clap(after_help = r#"
 SUPPORTED SHELLS:
   bash     - Bash shell completions
   zsh      - Zsh shell completions
@@ -190,8 +229,7 @@ EXAMPLES:
 SETUP:
   Add the generated completion script to your shell's completion directory
   and restart your shell or source the completion file.
-"#
-    )]
+"#)]
     Completions {
         /// The shell to generate completions for
         #[clap(value_enum)]
@@ -208,6 +246,32 @@ pub enum SearchMode {
     Word,
     /// Regular expression search
     Regex,
+}
+
+#[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InteractiveAlgorithm {
+    /// Boyer-Moore algorithm for fast text search
+    #[default]
+    BoyerMoore,
+    /// Regular expression search
+    Regex,
+    /// Simple text search
+    Simple,
+}
+
+#[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OutputFormat {
+    /// Plain text output (default)
+    #[default]
+    Text,
+    /// JSON format for programmatic processing
+    Json,
+    /// XML format for structured data
+    Xml,
+    /// HTML format for web display
+    Html,
+    /// Markdown format for documentation
+    Markdown,
 }
 
 impl fmt::Display for SearchMode {
