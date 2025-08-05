@@ -1,0 +1,249 @@
+.TH RFGREP-LIST 1 "August 2025" "rfgrep v0.1.1" "User Commands"
+
+.SH NAME
+rfgrep-list \- List files with detailed information and statistics
+
+.SH SYNOPSIS
+.B rfgrep list
+[\fIOPTIONS\fR]
+
+.SH DESCRIPTION
+The
+.B list
+command lists files in a directory with detailed information including file sizes, modification dates, and extension statistics. It provides both simple and detailed output formats with comprehensive filtering options.
+
+.SH OPTIONS
+.TP
+.BR \-r ", " \-\-recursive
+List files recursively in subdirectories
+.TP
+.BR \-\-extensions " " \fIEXTENSIONS\fR
+Comma-separated list of file extensions to include
+.TP
+.BR \-\-max\-size " " \fISIZE\fR
+Skip files larger than specified MB
+.TP
+.BR \-\-min\-size " " \fISIZE\fR
+Skip files smaller than specified MB
+.TP
+.BR \-\-detailed
+Show detailed file information (size, date, permissions)
+.TP
+.BR \-\-simple
+Show simple file listing (default)
+.TP
+.BR \-\-stats
+Show file extension statistics
+.TP
+.BR \-\-sort " " \fICRITERIA\fR
+Sort files by criteria (name, size, date, type)
+.TP
+.BR \-\-reverse
+Reverse sort order
+.TP
+.BR \-\-limit " " \fINUM\fR
+Limit number of files to display
+.TP
+.BR \-\-copy
+Copy file list to clipboard
+.TP
+.BR \-\-output\-format " " \fIFORMAT\fR
+Output format (text, json, csv, xml)
+
+.SH SORT CRITERIA
+.TP
+.B name
+Sort alphabetically by filename (default)
+.TP
+.B size
+Sort by file size (largest first)
+.TP
+.B date
+Sort by modification date (newest first)
+.TP
+.B type
+Sort by file extension
+.TP
+.B path
+Sort by full file path
+
+.SH OUTPUT FORMATS
+.TP
+.B text
+Plain text output with colored highlighting (default)
+.TP
+.B json
+JSON format for programmatic processing
+.TP
+.B csv
+Comma-separated values for spreadsheet import
+.TP
+.B xml
+XML format for structured data
+
+.SH EXAMPLES
+.TP
+List all files in current directory:
+.B rfgrep list
+.TP
+List Rust files recursively:
+.B rfgrep list \-\-extensions rs \-\-recursive
+.TP
+List files with detailed information:
+.B rfgrep list \-\-detailed \-\-sort size
+.TP
+List files under 1MB with statistics:
+.B rfgrep list \-\-max\-size 1 \-\-stats
+.TP
+List Python files sorted by date:
+.B rfgrep list \-\-extensions py \-\-sort date \-\-reverse
+.TP
+List files with JSON output:
+.B rfgrep list \-\-output\-format json
+.TP
+List top 10 largest files:
+.B rfgrep list \-\-sort size \-\-limit 10
+.TP
+List files and copy to clipboard:
+.B rfgrep list \-\-copy
+
+.SH OUTPUT EXAMPLES
+.TP
+Simple format (default):
+.RS
+.PP
+src/main.rs
+src/processor.rs
+src/search.rs
+tests/test_search.rs
+.RE
+.TP
+Detailed format:
+.RS
+.PP
+-rw-r--r-- 1 user group  2.1K Aug 5 10:30 src/main.rs
+-rw-r--r-- 1 user group  8.7K Aug 5 10:25 src/processor.rs
+-rw-r--r-- 1 user group  4.2K Aug 5 10:28 src/search.rs
+-rw-r--r-- 1 user group  1.5K Aug 5 10:20 tests/test_search.rs
+.RE
+.TP
+With statistics:
+.RS
+.PP
+Files found: 4
+Total size: 16.5K
+
+Extension statistics:
+  .rs: 3 files (12.0K)
+  .rs: 1 files (4.5K)
+.RE
+.TP
+JSON format:
+.RS
+.PP
+{
+  "files": [
+    {
+      "name": "main.rs",
+      "path": "src/main.rs",
+      "size": 2156,
+      "modified": "2025-08-05T10:30:00Z",
+      "extension": "rs"
+    }
+  ],
+  "statistics": {
+    "total_files": 4,
+    "total_size": 16896,
+    "extensions": {
+      "rs": 4
+    }
+  }
+}
+.RE
+
+.SH FILTERING OPTIONS
+.TP
+.B File Extensions
+Filter by specific file types using \-\-extensions
+.TP
+.B File Size
+Filter by size range using \-\-min\-size and \-\-max\-size
+.TP
+.B Directory Depth
+Control recursion depth with \-\-recursive
+.TP
+.B Hidden Files
+Include or exclude hidden files (configurable)
+.TP
+.B Binary Files
+Skip binary files with \-\-skip\-binary
+
+.SH PERFORMANCE OPTIONS
+.TP
+.BR \-\-skip\-binary
+Skip binary files (improves performance)
+.TP
+.BR \-\-max\-size " " \fISIZE\fR
+Skip large files to improve speed
+.TP
+.BR \-\-limit " " \fINUM\fR
+Limit output for faster processing
+
+.SH STATISTICS FEATURES
+.TP
+.B File Count
+Total number of files found
+.TP
+.B Size Analysis
+Total size and average file size
+.TP
+.B Extension Distribution
+Breakdown by file extension
+.TP
+.B Directory Analysis
+Files per directory
+.TP
+.B Size Distribution
+Files by size ranges
+
+.SH EXIT STATUS
+.TP
+.B 0
+Success, files found
+.TP
+.B 1
+No files found matching criteria
+.TP
+.B 2
+Error occurred during listing
+
+.SH NOTES
+.TP
+.B Performance
+Use \-\-skip\-binary for faster listing on large directories
+.TP
+.B Memory
+Large directory trees are processed efficiently
+.TP
+.B Parallelism
+File listing is performed in parallel
+.TP
+.B Caching
+Directory metadata is cached for repeated operations
+
+.SH TROUBLESHOOTING
+.TP
+.B Slow Performance
+Use \-\-skip\-binary and limit file extensions
+.TP
+.B Memory Issues
+Use \-\-limit to restrict output size
+.TP
+.B Permission Errors
+Check file permissions for target directories
+
+.SH SEE ALSO
+.BR rfgrep (1),
+.BR rfgrep-search (1),
+.BR ls (1),
+.BR find (1) 

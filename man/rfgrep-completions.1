@@ -1,0 +1,284 @@
+.TH RFGREP-COMPLETIONS 1 "August 2025" "rfgrep v0.1.1" "User Commands"
+
+.SH NAME
+rfgrep-completions \- Generate shell completion scripts
+
+.SH SYNOPSIS
+.B rfgrep completions
+[\fIOPTIONS\fR] \fISHELL\fR
+
+.SH DESCRIPTION
+The
+.B completions
+command generates shell completion scripts for rfgrep, providing tab completion for commands, options, and arguments. This enhances the command-line experience by offering intelligent suggestions and reducing typing.
+
+.SH ARGUMENTS
+.TP
+.B SHELL
+Target shell for completion script
+.RS
+.TP
+.B bash
+Bash shell completion
+.TP
+.B zsh
+Zsh shell completion
+.TP
+.B fish
+Fish shell completion
+.TP
+.B elvish
+Elvish shell completion
+.TP
+.B powershell
+PowerShell completion
+.RE
+
+.SH OPTIONS
+.TP
+.BR \-o ", " \-\-output " " \fIFILE\fR
+Output file for completion script (default: stdout)
+.TP
+.BR \-\-install
+Install completion script to system location
+.TP
+.BR \-\-user
+Install to user directory instead of system
+
+.SH SUPPORTED SHELLS
+.TP
+.B bash
+Most common shell, widely supported
+.TP
+.B zsh
+Advanced shell with rich completion features
+.TP
+.B fish
+User-friendly shell with built-in completions
+.TP
+.B elvish
+Modern shell with structured data support
+.TP
+.B powershell
+Cross-platform shell for Windows and Unix
+
+.SH EXAMPLES
+.TP
+Generate bash completion script:
+.B rfgrep completions bash
+.TP
+Generate zsh completion and save to file:
+.B rfgrep completions zsh \-\-output ~/.zsh/completions/_rfgrep
+.TP
+Install fish completion for current user:
+.B rfgrep completions fish \-\-install \-\-user
+.TP
+Generate PowerShell completion:
+.B rfgrep completions powershell
+.TP
+Install system-wide bash completion:
+.B rfgrep completions bash \-\-install
+
+.SH INSTALLATION
+.TP
+.B Bash
+.RS
+.PP
+# Generate and source completion
+rfgrep completions bash >> ~/.bashrc
+source ~/.bashrc
+.RE
+.TP
+.B Zsh
+.RS
+.PP
+# Generate completion file
+rfgrep completions zsh > ~/.zsh/completions/_rfgrep
+# Add to .zshrc
+echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+autoload -U compinit && compinit
+.RE
+.TP
+.B Fish
+.RS
+.PP
+# Generate and install
+rfgrep completions fish \-\-install \-\-user
+.RE
+.TP
+.B PowerShell
+.RS
+.PP
+# Generate and import
+rfgrep completions powershell > rfgrep-completion.ps1
+. rfgrep-completion.ps1
+.RE
+
+.SH COMPLETION FEATURES
+.TP
+.B Command Completion
+Complete subcommands (search, list, interactive)
+.TP
+.B Option Completion
+Complete global and command-specific options
+.TP
+.B Argument Completion
+Complete file paths, extensions, and patterns
+.TP
+.B Context Awareness
+Different completions based on current command
+.TP
+.B File Path Completion
+Complete local and absolute file paths
+.TP
+.B Extension Completion
+Complete common file extensions
+
+.SH COMPLETION EXAMPLES
+.TP
+Command completion:
+.RS
+.PP
+$ rfgrep <TAB>
+search  list  interactive  completions  help
+.RE
+.TP
+Option completion:
+.RS
+.PP
+$ rfgrep search "test" \-\-<TAB>
+\-\-extensions  \-\-recursive  \-\-copy  \-\-output-format
+.RE
+.TP
+Extension completion:
+.RS
+.PP
+$ rfgrep search "test" \-\-extensions <TAB>
+rs  py  js  md  txt  json  xml  html
+.RE
+.TP
+File path completion:
+.RS
+.PP
+$ rfgrep search "test" src/<TAB>
+src/main.rs  src/processor.rs  src/search.rs
+.RE
+
+.SH SHELL-SPECIFIC FEATURES
+.TP
+.B Bash
+.RS
+.TP
+.B Menu Completion
+Press TAB twice for menu selection
+.TP
+.B Partial Completion
+Complete partial matches
+.TP
+.B Case Insensitive
+Case-insensitive completion
+.RE
+.TP
+.B Zsh
+.RS
+.TP
+.B Advanced Menus
+Rich menu interface with descriptions
+.TP
+.B Fuzzy Matching
+Fuzzy completion for partial matches
+.TP
+.B Context Help
+Help text for options and arguments
+.RE
+.TP
+.B Fish
+.RS
+.TP
+.B Built-in Support
+Native completion system
+.TP
+.B Automatic Loading
+Auto-loads completion scripts
+.TP
+.B Rich Descriptions
+Detailed option descriptions
+.RE
+
+.SH CONFIGURATION
+.TP
+.B Environment Variables
+.RS
+.TP
+.B RFGREP_COMPLETION_CACHE
+Cache directory for completion data
+.TP
+.B RFGREP_COMPLETION_TIMEOUT
+Timeout for completion generation
+.RE
+.TP
+.B Configuration Files
+.RS
+.TP
+.B ~/.config/rfgrep/completions.toml
+Custom completion configuration
+.RE
+
+.SH TROUBLESHOOTING
+.TP
+.B Completion Not Working
+.RS
+.TP
+.B Check Installation
+Verify completion script is properly installed
+.TP
+.B Reload Shell
+Restart shell or reload configuration
+.TP
+.B Check Permissions
+Ensure completion script is executable
+.RE
+.TP
+.B Slow Completion
+.RS
+.TP
+.B Reduce Scope
+Limit file path completion scope
+.TP
+.B Use Cache
+Enable completion caching
+.TP
+.B Update Script
+Regenerate completion script
+.RE
+
+.SH EXIT STATUS
+.TP
+.B 0
+Success, completion script generated
+.TP
+.B 1
+Error occurred during generation
+.TP
+.B 2
+Unsupported shell specified
+
+.SH NOTES
+.TP
+.B Performance
+Completion scripts are optimized for speed
+.TP
+.B Compatibility
+Works with standard shell configurations
+.TP
+.B Updates
+Regenerate completions after rfgrep updates
+.TP
+.B Customization
+Completion behavior can be customized
+
+.SH SEE ALSO
+.BR rfgrep (1),
+.BR bash (1),
+.BR zsh (1),
+.BR fish (1) 
