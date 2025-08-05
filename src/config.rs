@@ -1,11 +1,9 @@
+use crate::cli::SearchMode;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::fs; 
-use dirs;
-use toml;
-use crate::cli::SearchMode;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -15,9 +13,12 @@ pub struct Config {
 
     #[serde(default)]
     pub display: DisplayConfig,
-    
+
     #[serde(default)]
     pub ignore: IgnoreConfig,
+
+    #[serde(default)]
+    pub performance: PerformanceConfig,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -32,8 +33,8 @@ pub struct SearchConfig {
 
 #[derive(Serialize, Deserialize)]
 pub struct DisplayConfig {
-    // pub colors: ColorScheme, 
-    #[serde(skip)] 
+    // pub colors: ColorScheme,
+    #[serde(skip)]
     pub progress_style: Option<indicatif::ProgressStyle>,
     pub show_timing: bool,
     pub show_summary: bool,
@@ -70,25 +71,76 @@ pub struct IgnoreConfig {
 impl Default for IgnoreConfig {
     fn default() -> Self {
         Self {
-            patterns: vec![
-                "node_modules".to_string(),
-                ".git".to_string(),
-            ],
+            patterns: vec!["node_modules".to_string(), ".git".to_string()],
             binary_files: true,
             hidden_files: true,
             min_file_size: None,
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PerformanceConfig {
+    /// Adaptive memory mapping threshold (in MB)
+    #[serde(default = "default_mmap_threshold")]
+    pub mmap_threshold_mb: u64,
+    /// Maximum memory usage (in MB)
+    #[serde(default = "default_max_memory")]
+    pub max_memory_usage_mb: u64,
+    /// Chunk size multiplier for parallel processing
+    #[serde(default = "default_chunk_multiplier")]
+    pub chunk_size_multiplier: f64,
+    /// Enable adaptive memory management
+    #[serde(default = "default_adaptive_memory")]
+    pub adaptive_memory: bool,
+    /// Cache size for regex patterns
+    #[serde(default = "default_regex_cache_size")]
+    pub regex_cache_size: usize,
+    /// File metadata cache size
+    #[serde(default = "default_metadata_cache_size")]
+    pub metadata_cache_size: usize,
+}
+
+fn default_mmap_threshold() -> u64 {
+    16
+}
+fn default_max_memory() -> u64 {
+    512
+}
+fn default_chunk_multiplier() -> f64 {
+    1.0
+}
+fn default_adaptive_memory() -> bool {
+    true
+}
+fn default_regex_cache_size() -> usize {
+    100
+}
+fn default_metadata_cache_size() -> usize {
+    1000
+}
+
+impl Default for PerformanceConfig {
+    fn default() -> Self {
+        Self {
+            mmap_threshold_mb: default_mmap_threshold(),
+            max_memory_usage_mb: default_max_memory(),
+            chunk_size_multiplier: default_chunk_multiplier(),
+            adaptive_memory: default_adaptive_memory(),
+            regex_cache_size: default_regex_cache_size(),
+            metadata_cache_size: default_metadata_cache_size(),
+        }
+    }
+}
+
 impl Config {
     pub fn load() -> Result<Self> {
         let config_path = Self::find_config_path()?;
         if let Some(path) = config_path {
             let content = fs::read_to_string(&path)
                 .with_context(|| format!("Failed to read config file: {}", path.display()))?;
-            
-            toml::from_str(&content)
-                .with_context(|| "Failed to parse config file")
+
+            toml::from_str(&content).with_context(|| "Failed to parse config file")
         } else {
             Ok(Self::default())
         }
@@ -121,17 +173,17 @@ impl Config {
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize config")?;
-        
+        let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
+
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+            fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create config directory: {}", parent.display())
+            })?;
         }
-        
+
         fs::write(path, content)
             .with_context(|| format!("Failed to write config file: {}", path.display()))?;
-        
+
         Ok(())
     }
 }
@@ -149,6 +201,7 @@ impl Default for Config {
             },
             display: DisplayConfig::default(),
             ignore: IgnoreConfig::default(),
+            performance: PerformanceConfig::default(),
         }
     }
 }
