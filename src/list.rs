@@ -52,7 +52,7 @@ pub fn print_simple_list(files: &[FileInfo]) {
 
 pub fn print_long_format(files: &[FileInfo]) {
     let header_separator = "-".repeat(100).dimmed();
-    println!("{}", header_separator);
+    println!("{header_separator}");
     println!(
         "{:<60} {:>15} {:<10} {}",
         "Path".green().bold(),
@@ -60,7 +60,7 @@ pub fn print_long_format(files: &[FileInfo]) {
         "Type".green().bold(),
         "Binary".green().bold()
     );
-    println!("{}", header_separator);
+    println!("{header_separator}");
 
     files.par_iter().for_each(|file| {
         let size_str = format_size(file.size);
