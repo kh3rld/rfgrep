@@ -1,7 +1,7 @@
-use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Instant;
-use parking_lot::Mutex;
 
 #[derive(Debug, Clone)]
 pub struct ProgressStats {
