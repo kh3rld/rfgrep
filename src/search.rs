@@ -5,7 +5,7 @@ use crate::processor::search_file;
 use crate::progress::ProgressReporter;
 use log::debug;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use regex::Regex; 
+use regex::Regex;
 use std::{path::Path, sync::Arc};
 use tokio::sync::mpsc;
 
@@ -21,7 +21,7 @@ impl SearchExecutor {
         progress: ProgressReporter,
         pattern_str: &str,
     ) -> RfgrepResult<Self> {
-        let pattern = crate::processor::get_or_compile_regex(pattern_str)?; 
+        let pattern = crate::processor::get_or_compile_regex(pattern_str)?;
 
         Ok(Self {
             config: Arc::new(config),
@@ -42,11 +42,11 @@ impl SearchExecutor {
                 let path = entry.path();
                 let file_name = path.display().to_string();
                 if config.ignore.hidden_files && file_name.starts_with('.') {
-                    debug!("Skipping hidden file: {}", file_name);
+                    debug!("Skipping hidden file: {file_name}");
                     return None;
                 }
                 if config.ignore.patterns.iter().any(|p| file_name.contains(p)) {
-                    debug!("Skipping file matching ignore pattern: {}", file_name);
+                    debug!("Skipping file matching ignore pattern: {file_name}");
                     return None;
                 }
                 if let Some(max_size) = config.search.max_file_size {
@@ -59,7 +59,7 @@ impl SearchExecutor {
                     }
                 }
                 if config.ignore.binary_files && crate::processor::is_binary(path) {
-                    debug!("Skipping binary file: {}", file_name);
+                    debug!("Skipping binary file: {file_name}");
                     return None;
                 }
                 if !config.search.default_extensions.is_empty() {
@@ -70,13 +70,12 @@ impl SearchExecutor {
                             .iter()
                             .any(|e| e.eq_ignore_ascii_case(file_ext))
                         {
-                            debug!("Skipping file with non-matching extension: {}", file_name);
+                            debug!("Skipping file with non-matching extension: {file_name}");
                             return None;
                         }
                     } else {
                         debug!(
-                            "Skipping file with no extension (default_extensions set): {}",
-                            file_name
+                            "Skipping file with no extension (default_extensions set): {file_name}"
                         );
                         return None;
                     }
@@ -90,7 +89,7 @@ impl SearchExecutor {
         self.progress.main_progress.set_length(total_files as u64);
         self.progress
             .main_progress
-            .set_message(format!("Processing {} files...", total_files));
+            .set_message(format!("Processing {total_files} files..."));
         let _tx_clone = tx.clone(); // Clone tx for the spawned task
         let pattern = pattern.clone();
         let progress = progress.clone();
@@ -108,7 +107,7 @@ impl SearchExecutor {
                     Ok(matches) => {
                         let _ = tx.send(matches);
                         progress.update(1, 0, 0);
-                    },
+                    }
                     Err(e) => eprintln!("Error processing file {}: {}", path.display(), e),
                 };
             });
@@ -123,8 +122,7 @@ impl SearchExecutor {
 
         producer_handle
             .await
-            .map_err(|e| RfgrepError::Other(format!("File processing task failed: {}", e)))?
-            .and_then(|res| Ok(res))?;
+            .map_err(|e| RfgrepError::Other(format!("File processing task failed: {e}")))??;
 
         Ok(all_matches)
     }
