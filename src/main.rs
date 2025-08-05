@@ -1,11 +1,16 @@
 mod cli;
 mod clipboard;
+mod config;
 mod error;
+mod interactive;
 mod list;
+mod memory;
+mod output_formats;
 mod processor;
+mod search_algorithms;
 mod walker;
 
-use crate::error::{RfgrepError, Result as RfgrepResult};
+use crate::error::{Result as RfgrepResult, RfgrepError};
 use byte_unit::Byte;
 use clap::CommandFactory;
 use clap::Parser;
@@ -16,15 +21,14 @@ use indicatif::{ProgressBar, ProgressStyle};
 use list::*;
 use log::{info, warn};
 use processor::*;
-use num_cpus;
 use rayon::prelude::*;
 use regex::Regex;
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use walker::walk_dir;
 use std::time::Instant;
+use walker::walk_dir;
 
 fn main() -> RfgrepResult<()> {
     let cli = Cli::parse();
@@ -45,6 +49,7 @@ fn main() -> RfgrepResult<()> {
             pattern,
             mode,
             copy,
+            output_format,
             extensions: _,
             recursive,
         } => {
@@ -93,6 +98,7 @@ fn main() -> RfgrepResult<()> {
             if matches.is_empty() {
                 println!("{}", "No matches found".yellow());
             } else {
+                // For now, use the original text output since we need to convert matches
                 println!(
                     "\n{} {} {}",
                     "Found".green(),
@@ -100,7 +106,12 @@ fn main() -> RfgrepResult<()> {
                     "matches:".green()
                 );
                 for m in &matches {
-                    println!("{}", m);
+                    println!("{m}");
+                }
+
+                // TODO: Integrate output formats when SearchMatch conversion is ready
+                if matches!(output_format, cli::OutputFormat::Json) {
+                    println!("\n{}", "JSON output format not yet integrated".yellow());
                 }
             }
 
@@ -148,7 +159,7 @@ fn main() -> RfgrepResult<()> {
                 // Process file and collect errors
                 match fs::metadata(path).map_err(RfgrepError::Io) {
                     Ok(metadata) => {
-                         let ext = path
+                        let ext = path
                             .extension()
                             .and_then(|e| e.to_str())
                             .unwrap_or("none")
@@ -166,7 +177,8 @@ fn main() -> RfgrepResult<()> {
                             *counts_locked.entry(ext).or_insert(0) += 1;
                         }
                         total_size.fetch_add(metadata.len(), Ordering::Relaxed);
-                        { // Use a block to ensure the lock is released
+                        {
+                            // Use a block to ensure the lock is released
                             let mut files_locked = files.lock().unwrap();
                             files_locked.push(file_info);
                         }
@@ -204,10 +216,10 @@ fn main() -> RfgrepResult<()> {
             );
             println!("\n{}", "Extensions:".green().bold());
             for (ext, count) in ext_counts {
-                println!("  {}: {}", format!(".{}", ext).cyan(), count);
+                println!("  {}: {}", format!(".{ext}").cyan(), count);
             }
 
-             // Report collected errors for list command
+            // Report collected errors for list command
             let collected_errors = processing_errors.into_inner().unwrap();
             if !collected_errors.is_empty() {
                 eprintln!("\n{}", "Errors encountered during processing:".red().bold());
@@ -220,10 +232,73 @@ fn main() -> RfgrepResult<()> {
             let mut cmd = Cli::command();
             clap_complete::generate(*shell, &mut cmd, "rfgrep", &mut std::io::stdout());
         }
+        Commands::Interactive {
+            pattern,
+            algorithm,
+            extensions,
+            recursive,
+        } => {
+            use crate::config::PerformanceConfig;
+            use crate::interactive::InteractiveSearchBuilder;
+            use crate::search_algorithms::SearchAlgorithm;
+
+            // Convert CLI algorithm to search algorithm
+            let search_algorithm = match algorithm {
+                cli::InteractiveAlgorithm::BoyerMoore => SearchAlgorithm::BoyerMoore,
+                cli::InteractiveAlgorithm::Regex => SearchAlgorithm::Regex,
+                cli::InteractiveAlgorithm::Simple => SearchAlgorithm::Simple,
+            };
+
+            // Collect files to search
+            let files: Vec<_> = walk_dir(&cli.path, *recursive, false)
+                .filter(|entry| entry.file_type().is_file())
+                .map(|entry| entry.path().to_path_buf())
+                .collect();
+
+            // Filter by extensions if specified
+            let filtered_files: Vec<_> = if let Some(exts) = extensions {
+                files
+                    .into_iter()
+                    .filter(|path| {
+                        if let Some(ext) = path.extension() {
+                            if let Some(ext_str) = ext.to_str() {
+                                return exts.contains(&ext_str.to_string());
+                            }
+                        }
+                        false
+                    })
+                    .collect()
+            } else {
+                files
+            };
+
+            println!("{}", "Starting interactive search mode...".green().bold());
+            println!("Pattern: {}", pattern.yellow());
+            println!("Algorithm: {algorithm:?}");
+            println!("Files to search: {}", filtered_files.len());
+            println!("{}", "Press 'q' to quit, 'h' for help".dimmed());
+
+            // Create interactive search session
+            let config = PerformanceConfig::default();
+            let mut interactive_search = InteractiveSearchBuilder::new(pattern)
+                .algorithm(search_algorithm)
+                .files(filtered_files)
+                .config(config)
+                .build();
+
+            // Run interactive session
+            if let Err(e) = interactive_search.run() {
+                eprintln!("{}", format!("Interactive mode error: {e}").red());
+                return Err(RfgrepError::Io(e));
+            }
+        }
     }
 
     pb.finish_with_message("Done");
-    info!("Application finished. Total elapsed time: {:.2?}", start_time.elapsed());
+    info!(
+        "Application finished. Total elapsed time: {:.2?}",
+        start_time.elapsed()
+    );
     Ok(())
 }
 
@@ -255,7 +330,9 @@ fn setup_logging(cli: &Cli) -> RfgrepResult<()> {
         builder.target(Target::Stderr);
     }
 
-    builder.try_init().map_err(|e| RfgrepError::Other(e.to_string()))?; // Map logging error
+    builder
+        .try_init()
+        .map_err(|e| RfgrepError::Other(e.to_string()))?; // Map logging error
     Ok(())
 }
 
@@ -275,7 +352,8 @@ fn process_file(
     cli: &Cli,
     regex: &Regex,
     pb: &ProgressBar,
-) -> RfgrepResult<Vec<String>> { // Changed return type to RfgrepResult
+) -> RfgrepResult<Vec<String>> {
+    // Changed return type to RfgrepResult
     if let Commands::Search {
         extensions: Some(exts),
         ..
@@ -291,10 +369,10 @@ fn process_file(
     }
 
     let file_name = path.display().to_string();
-    pb.set_message(format!("Processing {}", file_name));
+    pb.set_message(format!("Processing {file_name}"));
 
     if cli.dry_run {
-        info!("Dry run: {}", file_name);
+        info!("Dry run: {file_name}");
         return Ok(vec![]);
     }
 
@@ -309,11 +387,12 @@ fn process_file(
     }
 
     if cli.skip_binary && is_binary(path) {
-        warn!("Skipping binary file: {}", file_name);
+        warn!("Skipping binary file: {file_name}");
         return Ok(vec![]);
     }
 
-    search_file(path, regex).map_err(|e| RfgrepError::FileProcessing { // Map search_file error to FileProcessing
+    search_file(path, regex).map_err(|e| RfgrepError::FileProcessing {
+        // Map search_file error to FileProcessing
         path: path.to_path_buf(),
         source: Box::new(e),
     })
