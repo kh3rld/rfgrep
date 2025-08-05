@@ -1,6 +1,6 @@
-use thiserror::Error;
 use std::io;
 use std::path::PathBuf;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RfgrepError {
@@ -25,7 +25,8 @@ pub enum RfgrepError {
     #[error("Failed to process file '{path}': {source}")]
     FileProcessing {
         path: PathBuf,
-        #[source] source: Box<dyn std::error::Error + Send + Sync>,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     #[error("Invalid file extension: {0}")]
