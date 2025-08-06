@@ -30,23 +30,21 @@ pub struct SearchMatch {
 
 lazy_static! {
     static ref REGEX_CACHE: Mutex<LruCache<String, Regex>> =
-        { Mutex::new(LruCache::new(REGEX_CACHE_SIZE.try_into().unwrap())) };
+        Mutex::new(LruCache::new(REGEX_CACHE_SIZE.try_into().unwrap()));
 }
 
 pub fn is_binary(file: &Path) -> bool {
     // Use infer for initial magic number detection
-    if let Ok(kind) = infer::get_from_path(file) {
-        if let Some(k) = kind {
-            // Infer returns Some(Kind) for known file types, check if it's a text type
-            // This is a simplification; a more robust check might involve a list of known text MIME types
-            if !k.mime_type().starts_with("text/") {
-                debug!(
-                    "Infer detected binary file type for {}: {}",
-                    file.display(),
-                    k.mime_type()
-                );
-                return true;
-            }
+    if let Ok(Some(k)) = infer::get_from_path(file) {
+        // Infer returns Some(Kind) for known file types, check if it's a text type
+        // This is a simplification; a more robust check might involve a list of known text MIME types
+        if !k.mime_type().starts_with("text/") {
+            debug!(
+                "Infer detected binary file type for {}: {}",
+                file.display(),
+                k.mime_type()
+            );
+            return true;
         }
     }
 
