@@ -9,6 +9,7 @@ use regex::Regex;
 use std::{path::Path, sync::Arc};
 use tokio::sync::mpsc;
 
+#[allow(dead_code)]
 pub struct SearchExecutor {
     config: Arc<Config>,
     progress: Arc<ProgressReporter>,
@@ -16,6 +17,7 @@ pub struct SearchExecutor {
 }
 
 impl SearchExecutor {
+    #[allow(dead_code)]
     pub fn new(
         config: Config,
         progress: ProgressReporter,
@@ -30,6 +32,7 @@ impl SearchExecutor {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn execute(&self, root_path: &Path) -> RfgrepResult<Vec<String>> {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let config = self.config.clone();
@@ -127,20 +130,24 @@ impl SearchExecutor {
         Ok(all_matches)
     }
 
+    #[allow(dead_code)]
     pub fn get_progress_reporter(&self) -> Arc<ProgressReporter> {
         self.progress.clone()
     }
 
+    #[allow(dead_code)]
     pub fn get_config(&self) -> Arc<Config> {
         self.config.clone()
     }
 
+    #[allow(dead_code)]
     pub fn get_pattern(&self) -> Arc<Regex> {
         self.pattern.clone()
     }
 }
 
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct SearchStats {
     pub files_searched: usize,
     pub bytes_searched: u64,
