@@ -134,6 +134,7 @@ impl Default for PerformanceConfig {
 }
 
 impl Config {
+    #[allow(dead_code)]
     pub fn load() -> Result<Self> {
         let config_path = Self::find_config_path()?;
         if let Some(path) = config_path {
@@ -146,6 +147,7 @@ impl Config {
         }
     }
 
+    #[allow(dead_code)]
     fn find_config_path() -> Result<Option<PathBuf>> {
         // Check XDG config directory
         if let Some(xdg_config) = dirs::config_dir() {
@@ -172,6 +174,7 @@ impl Config {
         Ok(None)
     }
 
+    #[allow(dead_code)]
     pub fn save(&self, path: &Path) -> Result<()> {
         let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
 
