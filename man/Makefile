@@ -14,11 +14,9 @@ all: $(MANPAGES)
 gzip: $(MANPAGES)
 	@echo "Gzipping man pages..."
 	@for page in $(MANPAGES); do \
-		echo "Gzipping $page..."; \
-		gzip -c $page > $page.gz; \
+		echo "Gzipping $$page..."; \
+		gzip -c $$page > $$page.gz; \
 	done
-
-all: $(MANPAGES)
 
 install: $(MANPAGES)
 	@echo "Installing man pages to $(MAN1DIR)..."
@@ -31,7 +29,7 @@ install: $(MANPAGES)
 	@echo "Man pages installed successfully!"
 	@echo "You can now use: man rfgrep"
 
-uninstall:
+uninstall: 
 	@echo "Removing man pages from $(MAN1DIR)..."
 	@for page in $(MANPAGES); do \
 		echo "Removing $$page..."; \
@@ -56,11 +54,11 @@ install-user: $(MANPAGES)
 	@mkdir -p $(HOME)/.local/share/man/man1
 	@for page in $(MANPAGES); do \
 		echo "Installing $$page..."; \
-		cp $$page $(HOME)/.local/share/man/man1/; \
+		cp $$page $(HOME)/.local/share/man/1/; \
 		gzip -f $(HOME)/.local/share/man/man1/$$page; \
 	done
 	@echo "Man pages installed to user directory!"
-	@echo "Add to your shell profile: export MANPATH=\$$MANPATH:$(HOME)/.local/share/man"
+	@echo "Add to your shell profile: export MANPATH=\\$$MANPATH:$(HOME)/.local/share/man"
 
 # Development helpers
 preview: $(MANPAGES)
@@ -87,4 +85,4 @@ help:
 	@echo "  check        - Check man page syntax"
 	@echo "  preview      - Preview man pages"
 	@echo "  validate     - Validate man page format"
-	@echo "  help         - Show this help message" 
+	@echo "  help         - Show this help message"
