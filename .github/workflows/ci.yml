@@ -104,16 +104,19 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: strip target/${{ matrix.target }}/release/rfgrep || true
 
-      - name: Package artifacts (Unix)
+      - name: Prepare release assets (Unix)
         if: runner.os != 'Windows'
         run: |
           mkdir -p release
+          make -C man gzip
           cp target/${{ matrix.target }}/release/rfgrep release/
-          cp man/rfgrep.1.gz release/ || true
-          cp completions/* release/ || true
-          cp examples/usage.txt release/ || true
-          cp release/VERSION release/
-          cp release/LICENSE release/
+          cp man/*.gz release/
+          cp LICENSE release/
+
+      - name: Package artifacts (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          echo "This step is now part of 'Prepare release assets (Unix)'"
 
       - name: Package artifacts (Windows)
         if: runner.os == 'Windows'
