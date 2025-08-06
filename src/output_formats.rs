@@ -4,6 +4,7 @@ use std::path::Path;
 
 /// Output format types
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum OutputFormat {
     Text,
     Json,
@@ -13,6 +14,7 @@ pub enum OutputFormat {
 }
 
 /// Output formatter for different formats
+#[allow(dead_code)]
 pub struct OutputFormatter {
     format: OutputFormat,
     include_metadata: bool,
@@ -20,6 +22,7 @@ pub struct OutputFormatter {
 }
 
 impl OutputFormatter {
+    #[allow(dead_code)]
     pub fn new(format: OutputFormat) -> Self {
         Self {
             format,
@@ -28,17 +31,20 @@ impl OutputFormatter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_metadata(mut self, include: bool) -> Self {
         self.include_metadata = include;
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_context(mut self, include: bool) -> Self {
         self.include_context = include;
         self
     }
 
     /// Format search results
+    #[allow(dead_code)]
     pub fn format_results(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
         match self.format {
             OutputFormat::Text => self.format_text(matches, query, path),
@@ -50,6 +56,7 @@ impl OutputFormatter {
     }
 
     /// Format as JSON
+    #[allow(dead_code)]
     fn format_json(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
         let mut result = json!({
             "query": query,
@@ -103,6 +110,7 @@ impl OutputFormatter {
     }
 
     /// Format as plain text (default)
+    #[allow(dead_code)]
     fn format_text(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
         let mut output = String::new();
 
@@ -155,6 +163,7 @@ impl OutputFormatter {
     }
 
     /// Format as XML
+    #[allow(dead_code)]
     fn format_xml(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
         let mut output = String::new();
         output.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -205,6 +214,7 @@ impl OutputFormatter {
     }
 
     /// Format as HTML
+    #[allow(dead_code)]
     fn format_html(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
         let mut output = String::new();
         output.push_str("<!DOCTYPE html>\n<html>\n<head>\n");
@@ -263,14 +273,15 @@ impl OutputFormatter {
             };
 
             output.push_str("<div>");
+            let matched_html = format!(
+                "<span class=\"matched-text\">{}</span>",
+                escape_html(matched)
+            );
             output.push_str(&format!(
                 "<span class=\"line-number\">→ {:>4}</span> │ {}{}{}",
                 m.line_number,
                 escape_html(before),
-                format!(
-                    "<span class=\"matched-text\">{}</span>",
-                    escape_html(matched)
-                ),
+                matched_html,
                 escape_html(after)
             ));
             output.push_str("</div>\n");
@@ -283,6 +294,7 @@ impl OutputFormatter {
     }
 
     /// Format as Markdown
+    #[allow(dead_code)]
     fn format_markdown(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
         let mut output = String::new();
 
@@ -328,6 +340,7 @@ impl OutputFormatter {
 }
 
 /// Escape XML special characters
+#[allow(dead_code)]
 fn escape_xml(s: &str) -> String {
     s.replace("&", "&amp;")
         .replace("<", "&lt;")
@@ -337,6 +350,7 @@ fn escape_xml(s: &str) -> String {
 }
 
 /// Escape HTML special characters
+#[allow(dead_code)]
 fn escape_html(s: &str) -> String {
     s.replace("&", "&amp;")
         .replace("<", "&lt;")
