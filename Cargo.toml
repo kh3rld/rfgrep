@@ -34,7 +34,6 @@ doc = false
 [dependencies]
 anyhow = "1.0"
 arboard = "3.2"
-backoff = { version = "0.4", features = ["tokio"] }
 byte-unit = "5.1.6"
 clap = { version = "4.4", features = ["derive"] }
 colored = "3.0.0"
