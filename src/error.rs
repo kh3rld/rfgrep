@@ -17,9 +17,11 @@ pub enum RfgrepError {
     Walkdir(#[from] walkdir::Error),
 
     #[error("Memory map error: {0}")]
+    #[allow(dead_code)]
     Mmap(io::Error),
 
     #[error("Configuration error: {0}")]
+    #[allow(dead_code)]
     Config(String),
 
     #[error("Failed to process file '{path}': {source}")]
@@ -30,12 +32,15 @@ pub enum RfgrepError {
     },
 
     #[error("Invalid file extension: {0}")]
+    #[allow(dead_code)]
     InvalidExtension(String),
 
     #[error("Binary file detected: {0}")]
+    #[allow(dead_code)]
     BinaryFile(String),
 
     #[error("File too large: {path} ({size} MB)")]
+    #[allow(dead_code)]
     FileTooLarge { path: String, size: f64 },
 
     #[error("An unexpected error occurred: {0}")]
