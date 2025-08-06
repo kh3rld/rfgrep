@@ -31,9 +31,19 @@ jobs:
           cargo install cargo-audit --version 0.18.0
           cargo audit --version
 
-      - name: Run security audit
+      - name: Run security audit (with retry)
         run: |
-          cargo audit --json | tee audit-report.json
+          # Retry mechanism for cargo audit in case of file lock
+          RETRIES=5
+          for i in $(seq 1 $RETRIES); do
+            echo "Running cargo audit (attempt $i)..."
+            cargo audit --json | tee audit-report.json
+            if [ $? -eq 0 ]; then
+              break
+            fi
+            echo "cargo audit failed, retrying in 5 seconds..."
+            sleep 5
+          done
           cargo audit --deny warnings
 
       - name: Upload audit report
@@ -47,7 +57,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
-    needs: [audit]
+    needs: [audit] 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
