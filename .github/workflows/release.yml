@@ -26,6 +26,9 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Generate lockfile if missing
+        run: cargo generate-lockfile
+
       - name: Install cargo-audit
         run: |
           cargo install cargo-audit --version 0.18.0
@@ -206,7 +209,7 @@ jobs:
             
             ### 🚀 Installation
             
-            ```bash
+            ```
             # Download and extract
             tar -xzf rfgrep-*.tar.gz
             
@@ -231,7 +234,7 @@ jobs:
             
             ### 🔧 Usage Examples
             
-            ```bash
+            ```
             # Basic search
             rfgrep search "pattern" /path/to/files
             
@@ -296,6 +299,8 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write    # Grant permission needed for SARIF upload
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
