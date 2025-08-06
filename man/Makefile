@@ -7,7 +7,16 @@ MAN1DIR = $(MANDIR)/man1
 
 MANPAGES = rfgrep.1 rfgrep-search.1 rfgrep-interactive.1 rfgrep-list.1 rfgrep-completions.1
 
-.PHONY: all install uninstall clean check
+.PHONY: all install uninstall clean check gzip
+
+all: $(MANPAGES)
+
+gzip: $(MANPAGES)
+	@echo "Gzipping man pages..."
+	@for page in $(MANPAGES); do \
+		echo "Gzipping $page..."; \
+		gzip -c $page > $page.gz; \
+	done
 
 all: $(MANPAGES)
 
