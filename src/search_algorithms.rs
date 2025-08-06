@@ -8,6 +8,7 @@ pub struct BoyerMoore {
 }
 
 impl BoyerMoore {
+    #[allow(dead_code)]
     pub fn new(pattern: &str) -> Self {
         let pattern_bytes = pattern.as_bytes().to_vec();
         let bad_char_table = Self::build_bad_char_table(&pattern_bytes);
@@ -135,6 +136,7 @@ pub struct SearchMatch {
 
 /// Search algorithm types
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum SearchAlgorithm {
     BoyerMoore,
     Regex,
@@ -142,9 +144,11 @@ pub enum SearchAlgorithm {
 }
 
 /// Search algorithm factory
+#[allow(dead_code)]
 pub struct SearchAlgorithmFactory;
 
 impl SearchAlgorithmFactory {
+    #[allow(dead_code)]
     pub fn create(algorithm: SearchAlgorithm, pattern: &str) -> Box<dyn SearchAlgorithmTrait> {
         match algorithm {
             SearchAlgorithm::BoyerMoore => Box::new(BoyerMoore::new(pattern)),
@@ -157,6 +161,7 @@ impl SearchAlgorithmFactory {
 /// Trait for search algorithms
 pub trait SearchAlgorithmTrait {
     fn search(&self, text: &str) -> Vec<usize>;
+    #[allow(dead_code)]
     fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch>;
 
     fn get_context_before(
@@ -200,6 +205,7 @@ pub struct SimpleSearch {
 }
 
 impl SimpleSearch {
+    #[allow(dead_code)]
     pub fn new(pattern: &str) -> Self {
         Self {
             pattern: pattern.to_string(),
@@ -257,6 +263,7 @@ pub struct RegexSearch {
 }
 
 impl RegexSearch {
+    #[allow(dead_code)]
     pub fn new(pattern: &str) -> Self {
         Self {
             pattern: regex::Regex::new(pattern).expect("Invalid regex pattern"),
