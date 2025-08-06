@@ -2,15 +2,19 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags:
       - 'v*'
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
 
 jobs:
   # Security audit job
@@ -28,6 +32,14 @@ jobs:
 
       - name: Generate lockfile if missing
         run: cargo generate-lockfile
+
+      - name: Install cargo-lock
+        run: cargo install cargo-lock --features=cli
+
+      - name: Downgrade Cargo.lock to v3 for cargo audit compatibility
+        run: |
+          cargo lock translate > Cargo.lock.v3
+          mv Cargo.lock.v3 Cargo.lock
 
       - name: Install cargo-audit
         run: |
@@ -79,8 +91,7 @@ jobs:
           cargo test --all-features --workspace --verbose --release
 
       - name: Run clippy
-        run: |
-          cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -156,6 +167,7 @@ jobs:
             ${{ matrix.artifact_name }}.tar.gz
             checksums.txt
 
+
   # Release job
   release:
     name: Create Release
@@ -191,83 +203,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
           body: |
-            ## 🎉 rfgrep ${{ steps.version.outputs.version }}
-            
-            ### 📦 What's New
-            
-            This release transforms rfgrep from a basic utility into a professional-grade command-line tool with comprehensive documentation and enhanced user experience.
-            
-            ### ✨ Key Features
-            
-            - **Comprehensive Documentation System** with man pages
-            - **Shell Completions** for all major shells (Bash, Zsh, Fish, PowerShell, Elvish)
-            - **Interactive Search Mode** (ready for integration)
-            - **Adaptive Memory Management** for optimal performance
-            - **Multiple Search Algorithms** (Boyer-Moore, Simple, Regex)
-            - **Output Format Support** (JSON, XML, HTML, Markdown)
-            - **Enhanced CLI** with improved help and examples
-            - **Progress Reporting** and statistics
-            - **Improved Error Handling** and user experience
-            - **Complete Installation Guide** and release documentation
-            
-            ### 🚀 Installation
-            
-            ```
-            # Download and extract
-            tar -xzf rfgrep-*.tar.gz
-            
-            # Install binary
-            sudo cp rfgrep /usr/local/bin/
-            
-            # Install man pages
-            sudo cp -r man/* /usr/local/share/man/
-            sudo mandb
-            
-            # Install shell completions
-            rfgrep completions bash | sudo tee /etc/bash_completion.d/rfgrep
-            rfgrep completions zsh | sudo tee /usr/local/share/zsh/site-functions/_rfgrep
-            ```
-            
-            ### 📋 System Requirements
-            
-            - **Rust**: 1.70 or later
-            - **Linux**: x86_64, ARM64
-            - **macOS**: x86_64, ARM64
-            - **Windows**: x86_64
-            
-            ### 🔧 Usage Examples
-            
-            ```
-            # Basic search
-            rfgrep search "pattern" /path/to/files
-            
-            # Interactive mode
-            rfgrep interactive "pattern"
-            
-            # List files
-            rfgrep list /path/to/directory
-            
-            # Generate completions
-            rfgrep completions bash
-            ```
-            
-            ### 📚 Documentation
-            
-            - **Man Pages**: `man rfgrep`
-            - **Help**: `rfgrep --help`
-            - **Installation Guide**: See INSTALLATION_GUIDE.md
-            
-            ### 🔍 What's Changed
-            
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed changes.
-            
-            ### 🤝 Contributing
-            
-            We welcome contributions! Please see our contributing guidelines in the repository.
-            
-            ---
-            
-            **Thank you for using rfgrep!** 🎉
+            Minimal release of rfgrep version ${{ steps.version.outputs.version }}.
           files: |
             release-assets/*.tar.gz
             release-assets/checksums.txt
@@ -303,7 +239,7 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     permissions:
-      security-events: write    # Grant permission needed for SARIF upload
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
