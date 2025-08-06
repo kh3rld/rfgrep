@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 /// Interactive search session
+#[allow(dead_code)]
 pub struct InteractiveSearch {
     memory_manager: AdaptiveMemoryManager,
     search_algorithm: Box<dyn SearchAlgorithmTrait>,
@@ -23,6 +24,7 @@ pub struct InteractiveSearch {
 }
 
 impl InteractiveSearch {
+    #[allow(dead_code)]
     pub fn new(
         pattern: &str,
         algorithm: SearchAlgorithm,
@@ -45,6 +47,7 @@ impl InteractiveSearch {
     }
 
     /// Start the interactive search session
+    #[allow(dead_code)]
     pub fn run(&mut self) -> io::Result<()> {
         info!("Starting interactive search session");
 
@@ -61,6 +64,7 @@ impl InteractiveSearch {
     }
 
     /// Perform search across all files
+    #[allow(dead_code)]
     fn perform_search(&mut self) -> io::Result<()> {
         let pb = ProgressBar::new(self.file_paths.len() as u64);
         pb.set_style(
@@ -99,6 +103,7 @@ impl InteractiveSearch {
     }
 
     /// Display current results
+    #[allow(dead_code)]
     fn display_results(&self) -> io::Result<()> {
         let results = self.filtered_results.lock().unwrap();
         let total_results = results.len();
@@ -136,6 +141,7 @@ impl InteractiveSearch {
     }
 
     /// Display a single search match
+    #[allow(dead_code)]
     fn display_match(&self, index: usize, m: &SearchMatch) -> io::Result<()> {
         println!("\n{}", format!("[{index}]").cyan());
 
@@ -178,6 +184,7 @@ impl InteractiveSearch {
     }
 
     /// Display interactive help
+    #[allow(dead_code)]
     fn display_help(&self) -> io::Result<()> {
         println!("\n{}", "Interactive Commands:".green().bold());
         println!("  {} - New search", "n".yellow());
@@ -192,6 +199,7 @@ impl InteractiveSearch {
     }
 
     /// Handle user input
+    #[allow(dead_code)]
     fn handle_user_input(&mut self) -> io::Result<()> {
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
@@ -211,6 +219,7 @@ impl InteractiveSearch {
     }
 
     /// Start a new search
+    #[allow(dead_code)]
     fn new_search(&mut self) -> io::Result<()> {
         print!("{} ", "Enter new search pattern:".cyan());
         io::stdout().flush()?;
@@ -230,6 +239,7 @@ impl InteractiveSearch {
     }
 
     /// Filter current results
+    #[allow(dead_code)]
     fn filter_results(&mut self) -> io::Result<()> {
         print!("{} ", "Enter filter (file path or content):".cyan());
         io::stdout().flush()?;
@@ -256,6 +266,7 @@ impl InteractiveSearch {
     }
 
     /// Clear all filters
+    #[allow(dead_code)]
     fn clear_filters(&mut self) -> io::Result<()> {
         let results = self.results.lock().unwrap().clone();
         *self.filtered_results.lock().unwrap() = results;
@@ -265,6 +276,7 @@ impl InteractiveSearch {
     }
 
     /// Save results to file
+    #[allow(dead_code)]
     fn save_results(&self) -> io::Result<()> {
         let results = self.filtered_results.lock().unwrap();
         let filename = format!(
@@ -294,6 +306,7 @@ impl InteractiveSearch {
     }
 
     /// Quit interactive mode
+    #[allow(dead_code)]
     fn quit(&mut self) -> io::Result<()> {
         println!("{}", "Exiting interactive mode".yellow());
         *self.is_running.lock().unwrap() = false;
@@ -302,6 +315,7 @@ impl InteractiveSearch {
     }
 
     /// Get search statistics
+    #[allow(dead_code)]
     pub fn get_stats(&self) -> SearchStats {
         let results = self.results.lock().unwrap();
         let filtered = self.filtered_results.lock().unwrap();
@@ -318,6 +332,7 @@ impl InteractiveSearch {
 
 /// Search statistics for interactive mode
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SearchStats {
     pub total_results: usize,
     pub filtered_results: usize,
@@ -327,6 +342,7 @@ pub struct SearchStats {
 }
 
 /// Interactive search builder
+#[allow(dead_code)]
 pub struct InteractiveSearchBuilder {
     pattern: String,
     algorithm: SearchAlgorithm,
@@ -335,6 +351,7 @@ pub struct InteractiveSearchBuilder {
 }
 
 impl InteractiveSearchBuilder {
+    #[allow(dead_code)]
     pub fn new(pattern: &str) -> Self {
         Self {
             pattern: pattern.to_string(),
@@ -344,21 +361,25 @@ impl InteractiveSearchBuilder {
         }
     }
 
+    #[allow(dead_code)]
     pub fn algorithm(mut self, algorithm: SearchAlgorithm) -> Self {
         self.algorithm = algorithm;
         self
     }
 
+    #[allow(dead_code)]
     pub fn files(mut self, files: Vec<PathBuf>) -> Self {
         self.file_paths = files;
         self
     }
 
+    #[allow(dead_code)]
     pub fn config(mut self, config: PerformanceConfig) -> Self {
         self.config = config;
         self
     }
 
+    #[allow(dead_code)]
     pub fn build(self) -> InteractiveSearch {
         InteractiveSearch::new(&self.pattern, self.algorithm, self.file_paths, self.config)
     }
