@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ProgressStats {
     files_processed: usize,
     bytes_processed: u64,
@@ -11,6 +12,7 @@ pub struct ProgressStats {
     start_time: Instant,
 }
 
+#[allow(dead_code)]
 pub struct ProgressReporter {
     pub multi_progress: Arc<MultiProgress>,
     pub main_progress: ProgressBar,
@@ -20,6 +22,7 @@ pub struct ProgressReporter {
 }
 
 impl ProgressReporter {
+    #[allow(dead_code)]
     pub fn new(total_files: usize) -> Self {
         let multi_progress = Arc::new(MultiProgress::new());
         let style = ProgressStyle::default_bar()
@@ -44,6 +47,7 @@ impl ProgressReporter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn create_subprocess_bar(&self, name: &str, size: u64) -> ProgressBar {
         let pb = ProgressBar::new(size);
         pb.set_style(self.style.clone());
@@ -51,6 +55,7 @@ impl ProgressReporter {
         self.multi_progress.add(pb)
     }
 
+    #[allow(dead_code)]
     pub fn update(&self, files: usize, bytes: u64, matches: usize) {
         let mut stats = self.stats.lock();
         stats.files_processed += files;
@@ -61,6 +66,7 @@ impl ProgressReporter {
         self.update_message(&stats);
     }
 
+    #[allow(dead_code)]
     fn update_message(&self, stats: &ProgressStats) {
         let elapsed = stats.start_time.elapsed();
         let speed = if elapsed.as_secs() > 0 {
@@ -77,6 +83,7 @@ impl ProgressReporter {
         ));
     }
 
+    #[allow(dead_code)]
     pub fn finish(self) -> ProgressStats {
         let stats = self.stats.lock().clone();
         self.main_progress.finish_with_message(format!(
