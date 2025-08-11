@@ -173,7 +173,7 @@ jobs:
           find artifacts -name "*.sha256" -exec cat {} \; > dist/SHA256SUMS.windows
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/**/*
