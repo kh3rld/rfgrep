@@ -44,27 +44,21 @@ For more information, visit: https://github.com/kh3rld/rfgrep
 "#
 )]
 pub struct Cli {
-    /// Base directory to search/list (default: current directory)
     #[clap(default_value = ".")]
     pub path: PathBuf,
 
-    /// Enable verbose logging output
     #[clap(long, value_parser, default_value_t = false)]
     pub verbose: bool,
 
-    /// Write logs to specified file
     #[clap(long, value_parser)]
     pub log: Option<PathBuf>,
 
-    /// Preview files without processing (useful for testing)
     #[clap(long, value_parser, default_value_t = false)]
     pub dry_run: bool,
 
-    /// Skip files larger than specified MB
     #[clap(long, value_parser)]
     pub max_size: Option<usize>,
 
-    /// Skip binary files (improves performance)
     #[clap(long, value_parser, default_value_t = false)]
     pub skip_binary: bool,
 
@@ -74,7 +68,6 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Search for patterns in files with advanced filtering
     #[clap(after_help = r#"
 SEARCH MODES:
   text    - Plain text search (default)
@@ -98,34 +91,41 @@ PERFORMANCE TIPS:
   • Use --skip-binary for faster processing
   • Limit file size with --max-size
   • Use --dry-run to preview files first
-  • Combine --extensions with --recursive for targeted search
 "#)]
     Search {
-        /// Pattern to search for in files
         pattern: String,
 
-        /// Search mode to use
         #[clap(value_parser, default_value_t = SearchMode::Text)]
         mode: SearchMode,
 
-        /// Copy search results to clipboard
         #[clap(long, value_parser, default_value_t = false)]
         copy: bool,
 
-        /// Output format for results
         #[clap(long, value_enum, default_value_t = OutputFormat::Text)]
         output_format: OutputFormat,
 
-        /// Comma-separated list of file extensions to include
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
 
-        /// Recursively search subdirectories
         #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
+
+        #[clap(long, value_parser, default_value_t = 0)]
+        context_lines: usize,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        case_sensitive: bool,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        invert_match: bool,
+
+        #[clap(long, value_parser)]
+        max_matches: Option<usize>,
+
+        #[clap(long, value_enum, default_value_t = SearchAlgorithm::BoyerMoore)]
+        algorithm: SearchAlgorithm,
     },
 
-    /// Interactive search mode with real-time filtering
     #[clap(after_help = r#"
 INTERACTIVE FEATURES:
   • Real-time search with live filtering
@@ -149,22 +149,17 @@ EXAMPLES:
   rfgrep interactive "test" --algorithm boyer-moore --recursive
 "#)]
     Interactive {
-        /// Pattern to search for in files
         pattern: String,
 
-        /// Search algorithm to use
         #[clap(long, value_enum, default_value_t = InteractiveAlgorithm::BoyerMoore)]
         algorithm: InteractiveAlgorithm,
 
-        /// Comma-separated list of file extensions to include
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
 
-        /// Recursively search subdirectories
         #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
     },
-    /// List files with detailed information and statistics
     #[clap(after_help = r#"
 OUTPUT FORMATS:
   Simple  - Just file paths (default)
@@ -191,23 +186,48 @@ FEATURES:
   • Recursive directory traversal
 "#)]
     List {
-        /// Comma-separated list of file extensions to include
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
 
-        /// Show detailed output with size and type information
         #[clap(short, long, value_parser, default_value_t = false)]
         long: bool,
 
-        /// Recursively list files in subdirectories
         #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
 
-        /// Include hidden files and directories
         #[clap(long, value_parser, default_value_t = false)]
         show_hidden: bool,
+
+        #[clap(long, value_parser)]
+        max_size: Option<usize>,
+
+        #[clap(long, value_parser)]
+        min_size: Option<usize>,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        detailed: bool,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        simple: bool,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        stats: bool,
+
+        #[clap(long, value_enum, default_value_t = SortCriteria::Name)]
+        sort: SortCriteria,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        reverse: bool,
+
+        #[clap(long, value_parser)]
+        limit: Option<usize>,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        copy: bool,
+
+        #[clap(long, value_enum, default_value_t = OutputFormat::Text)]
+        output_format: OutputFormat,
     },
-    /// Generate shell completion scripts for better CLI experience
     #[clap(after_help = r#"
 SUPPORTED SHELLS:
   bash     - Bash shell completions
@@ -231,7 +251,6 @@ SETUP:
   and restart your shell or source the completion file.
 "#)]
     Completions {
-        /// The shell to generate completions for
         #[clap(value_enum)]
         shell: Shell,
     },
@@ -239,38 +258,43 @@ SETUP:
 
 #[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SearchMode {
-    /// Plain text search (case-sensitive)
     #[default]
     Text,
-    /// Whole word matching with word boundaries
     Word,
-    /// Regular expression search
     Regex,
 }
 
 #[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InteractiveAlgorithm {
-    /// Boyer-Moore algorithm for fast text search
     #[default]
     BoyerMoore,
-    /// Regular expression search
     Regex,
-    /// Simple text search
     Simple,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum SearchAlgorithm {
+    BoyerMoore,
+    Regex,
+    Simple,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum SortCriteria {
+    Name,
+    Size,
+    Date,
+    Type,
+    Path,
 }
 
 #[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OutputFormat {
-    /// Plain text output (default)
     #[default]
     Text,
-    /// JSON format for programmatic processing
     Json,
-    /// XML format for structured data
     Xml,
-    /// HTML format for web display
     Html,
-    /// Markdown format for documentation
     Markdown,
 }
 
