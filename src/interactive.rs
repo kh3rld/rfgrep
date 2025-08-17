@@ -3,6 +3,7 @@ use crate::memory::AdaptiveMemoryManager;
 use crate::search_algorithms::{
     SearchAlgorithm, SearchAlgorithmFactory, SearchAlgorithmTrait, SearchMatch,
 };
+use atty;
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
@@ -51,10 +52,8 @@ impl InteractiveSearch {
     pub fn run(&mut self) -> io::Result<()> {
         info!("Starting interactive search session");
 
-        // Initial search
         self.perform_search()?;
 
-        // Interactive loop
         while *self.is_running.lock().unwrap() {
             self.display_results()?;
             self.handle_user_input()?;
@@ -86,7 +85,6 @@ impl InteractiveSearch {
                     .search_algorithm
                     .search_with_context(&content, self.context_lines);
 
-                // Add file path to each match
                 for mut m in matches {
                     m.line = format!("{}:{}", path.display(), m.line);
                     all_results.push(m);
@@ -122,7 +120,6 @@ impl InteractiveSearch {
             return Ok(());
         }
 
-        // Display first 20 results
         let display_count = total_results.min(20);
         for (i, m) in results.iter().take(display_count).enumerate() {
             self.display_match(i + 1, m)?;
@@ -145,12 +142,10 @@ impl InteractiveSearch {
     fn display_match(&self, index: usize, m: &SearchMatch) -> io::Result<()> {
         println!("\n{}", format!("[{index}]").cyan());
 
-        // Display context before
         for (num, line) in &m.context_before {
             println!("  {} │ {}", format!("{num}").dimmed(), line.dimmed());
         }
 
-        // Display matching line with highlight
         let line_len = m.line.len();
         let column_start = m.column_start.min(line_len);
         let column_end = m.column_end.min(line_len);
@@ -175,7 +170,6 @@ impl InteractiveSearch {
             after
         );
 
-        // Display context after
         for (num, line) in &m.context_after {
             println!("  {} │ {}", format!("{num}").dimmed(), line.dimmed());
         }
@@ -201,18 +195,34 @@ impl InteractiveSearch {
     /// Handle user input
     #[allow(dead_code)]
     fn handle_user_input(&mut self) -> io::Result<()> {
+        if !atty::is(atty::Stream::Stdin) {
+            self.display_results()?;
+            self.quit()?;
+            return Ok(());
+        }
+
         let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
+        match io::stdin().read_line(&mut input) {
+            Ok(0) => {
+                self.quit()?;
+                return Ok(());
+            }
+            Ok(_) => {
+                let command = input.trim().to_lowercase();
 
-        let command = input.trim().to_lowercase();
-
-        match command.as_str() {
-            "n" | "new" => self.new_search()?,
-            "f" | "filter" => self.filter_results()?,
-            "c" | "clear" => self.clear_filters()?,
-            "s" | "save" => self.save_results()?,
-            "q" | "quit" => self.quit()?,
-            _ => println!("{}", "Unknown command. Type 'q' to quit.".red()),
+                match command.as_str() {
+                    "n" | "new" => self.new_search()?,
+                    "f" | "filter" => self.filter_results()?,
+                    "c" | "clear" => self.clear_filters()?,
+                    "s" | "save" => self.save_results()?,
+                    "q" | "quit" => self.quit()?,
+                    _ => println!("{}", "Unknown command. Type 'q' to quit.".red()),
+                }
+            }
+            Err(e) => {
+                eprintln!("{}", format!("Error reading input: {e}").red());
+                self.quit()?;
+            }
         }
 
         Ok(())
