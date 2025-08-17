@@ -40,7 +40,7 @@ impl SearchExecutor {
         let progress = self.progress.clone();
 
         let initial_files: Vec<PathBuf> = crate::walker::walk_dir(root_path, true, false)
-            .filter(|entry| entry.file_type().is_file())
+            .filter(|entry| entry.path().is_file())
             .filter_map(|entry| {
                 let path = entry.path();
                 let file_name = path.display().to_string();
@@ -54,7 +54,7 @@ impl SearchExecutor {
                 }
                 if let Some(max_size) = config.search.max_file_size {
                     if let Ok(metadata) = path.metadata() {
-                        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0); // Convert bytes to MB
+                        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0); 
                         if size_mb > max_size as f64 {
                             debug!("Skipping large file ({}MB): {}", size_mb.round(), file_name);
                             return None;
@@ -93,7 +93,7 @@ impl SearchExecutor {
         self.progress
             .main_progress
             .set_message(format!("Processing {total_files} files..."));
-        let _tx_clone = tx.clone(); // Clone tx for the spawned task
+        let _tx_clone = tx.clone(); 
         let pattern = pattern.clone();
         let progress = progress.clone();
         let producer_handle = tokio::task::spawn_blocking(move || {
