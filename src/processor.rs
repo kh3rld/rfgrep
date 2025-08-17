@@ -14,8 +14,8 @@ use std::sync::Mutex;
 use std::time::Instant;
 const CONTEXT_LINES: usize = 2;
 const BINARY_CHECK_SIZE: usize = 8000;
-const MMAP_THRESHOLD: u64 = 16 * 1024 * 1024; // 16 MB
-const REGEX_CACHE_SIZE: usize = 100; // Cache up to 100 compiled regexes
+const MMAP_THRESHOLD: u64 = 16 * 1024 * 1024; 
+const REGEX_CACHE_SIZE: usize = 100; 
 
 #[derive(Debug)]
 pub struct SearchMatch {
@@ -36,8 +36,7 @@ lazy_static! {
 pub fn is_binary(file: &Path) -> bool {
     // Use infer for initial magic number detection
     if let Ok(Some(k)) = infer::get_from_path(file) {
-        // Infer returns Some(Kind) for known file types, check if it's a text type
-        // This is a simplification; a more robust check might involve a list of known text MIME types
+        // Todo: Implement a more robust check, involve a list of known text MIME types
         if !k.mime_type().starts_with("text/") {
             debug!(
                 "Infer detected binary file type for {}: {}",
@@ -54,7 +53,7 @@ pub fn is_binary(file: &Path) -> bool {
         if let Ok(n) = file.read(&mut buffer) {
             if n > 0 {
                 let null_bytes = buffer[..n].iter().filter(|&&b| b == 0).count();
-                let binary_threshold = (n as f64 * 0.1).max(1.0); // More than 10% null bytes or at least 1 null byte (if sample is large enough)
+                let binary_threshold = (n as f64 * 0.1).max(1.0); 
                 if null_bytes as f64 > binary_threshold {
                     debug!(
                         "Null byte heuristic detected binary file for {}",
@@ -80,7 +79,6 @@ fn is_binary_content(data: &[u8]) -> bool {
 
 // Function to get or compile a regex, using the cache
 pub fn get_or_compile_regex(pattern: &str) -> RfgrepResult<Regex> {
-    // Changed return type to RfgrepResult
     let mut cache = REGEX_CACHE.lock().unwrap();
 
     if let Some(regex) = cache.get(pattern) {
@@ -88,7 +86,7 @@ pub fn get_or_compile_regex(pattern: &str) -> RfgrepResult<Regex> {
         Ok(regex.clone())
     } else {
         debug!("Regex cache miss for pattern: {pattern}. Compiling.");
-        let regex = Regex::new(pattern).map_err(RfgrepError::Regex)?; // Map regex error
+        let regex = Regex::new(pattern).map_err(RfgrepError::Regex)?; 
         cache.put(pattern.to_string(), regex.clone());
         Ok(regex)
     }
@@ -110,29 +108,24 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<String>> {
 
     let matches_found = if file_size >= MMAP_THRESHOLD {
         debug!("Attempting memory mapping for file: {file_display} ({file_size} bytes)");
-        // Try memory mapping for large files
         match unsafe { Mmap::map(&file) } {
             Ok(mmap) => {
                 debug!("Successfully memory mapped file: {file_display}");
-                // Check for null bytes in a sample to detect binary files before processing
                 if is_binary_content(&mmap) {
                     info!("Skipping binary file (mmap): {file_display}");
-                    return Ok(vec![]); // Skip binary mmapped files
-                } // mmap is dropped here, so content cannot be 'a
-                // Process mmapped content
+                    return Ok(vec![]); 
+                } 
                 let content = unsafe { std::str::from_utf8_unchecked(&mmap) };
                 find_matches_with_context(content.to_string(), pattern, path)?
             }
             Err(e) => {
                 warn!("Failed to memory map file {file_display}: {e}. Falling back to streaming.");
-                // Fallback to streaming if mmap fails
                 let reader = BufReader::new(file);
                 find_matches_streaming(reader, pattern, path)?
             }
         }
     } else {
         debug!("Using streaming for file: {file_display} ({file_size} bytes)");
-        // Use buffered streaming for smaller files
         let reader = BufReader::new(file);
         find_matches_streaming(reader, pattern, path)?
     };
@@ -155,20 +148,17 @@ fn find_matches_with_context(
     path: &Path,
 ) -> RfgrepResult<Vec<SearchMatch>> {
     let mut matches = Vec::new();
-    // Collect lines into a Vec<String> to allow indexing
     let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
     for (i, line) in lines.iter().enumerate() {
-        // Iterate over references to avoid moving
         if let Some(m) = pattern.find(line) {
             debug!("Match found in {}: line {}", path.display(), i + 1);
             // Get context before
             let start_idx = i.saturating_sub(CONTEXT_LINES);
             let context_before: Vec<(usize, String)> = (start_idx..i)
-                .map(|idx| (idx + 1, lines[idx].clone())) // Clone to own the String
+                .map(|idx| (idx + 1, lines[idx].clone())) 
                 .collect();
 
-            // Get context after
             let end_idx = (i + CONTEXT_LINES + 1).min(lines.len());
             let context_after: Vec<(usize, String)> = ((i + 1)..end_idx)
                 .map(|idx| (idx + 1, lines[idx].to_string()))
@@ -188,7 +178,6 @@ fn find_matches_with_context(
     Ok(matches)
 }
 
-// Helper function to find matches and collect context for streaming content
 fn find_matches_streaming<R: Read>(
     reader: BufReader<R>,
     pattern: &Regex,
@@ -210,24 +199,20 @@ fn find_matches_streaming<R: Read>(
             )
         })?;
 
-        // Add current line to buffer and maintain buffer size
         lines_buffer.push_back((current_line_number, line.clone()));
         if lines_buffer.len() > 2 * CONTEXT_LINES + 1 {
             lines_buffer.pop_front();
         }
 
-        // Check for match in the current line (which is the last in the buffer)
         if let Some(m) = pattern.find(&line) {
             debug!(
                 "Match found in {}: line {} (streaming)",
                 path.display(),
                 current_line_number
             );
-            // Collect context before from the buffer
             let context_before: Vec<(usize, String)> =
                 lines_buffer.iter().take(CONTEXT_LINES).cloned().collect();
 
-            // Read context after from the reader
             let mut context_after = Vec::new();
             let temp_reader_lines = reader_lines.by_ref().take(CONTEXT_LINES);
             for next_line_result in temp_reader_lines {
@@ -274,10 +259,9 @@ fn format_matches(
 
         for (i, m) in matches.iter().enumerate() {
             if i > 0 {
-                output.push("".to_string()); // Empty line between matches
+                output.push("".to_string()); 
             }
 
-            // Print context before
             for (num, line) in &m.context_before {
                 output.push(format!(
                     "  {} │ {}",
@@ -286,7 +270,6 @@ fn format_matches(
                 ));
             }
 
-            // Print matching line with highlighted match
             let before = &m.line[..m.column_start];
             let matched = &m.matched_text;
             let after = &m.line[m.column_end..];
@@ -297,8 +280,6 @@ fn format_matches(
                 matched.yellow().bold(),
                 after
             ));
-
-            // Print context after
             for (num, line) in &m.context_after {
                 output.push(format!(
                     "  {} │ {}",
