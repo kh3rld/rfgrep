@@ -1,5 +1,4 @@
 mod cli;
-mod clipboard;
 mod config;
 mod error;
 mod interactive;
@@ -52,6 +51,11 @@ fn main() -> RfgrepResult<()> {
             output_format,
             extensions: _,
             recursive,
+            context_lines: _,
+            case_sensitive: _,
+            invert_match: _,
+            max_matches,
+            algorithm: _,
         } => {
             let regex = if matches!(mode, SearchMode::Regex) {
                 processor::get_or_compile_regex(pattern)?
@@ -63,7 +67,7 @@ fn main() -> RfgrepResult<()> {
 
             // Collect all files first
             let files: Vec<_> = walk_dir(&cli.path, *recursive, false)
-                .filter(|entry| entry.file_type().is_file())
+                .filter(|entry| entry.path().is_file())
                 .collect();
 
             pb.set_message(format!("Processing {} files...", files.len()));
@@ -92,13 +96,19 @@ fn main() -> RfgrepResult<()> {
                 }
             });
 
-            let mut matches = matches.into_inner().unwrap(); // Mutex unwrap is safe here as no other threads are accessing it
+            let mut matches = matches.into_inner().unwrap();
             matches.sort();
+
+            // Apply max_matches limit if specified
+            if let Some(max_matches) = max_matches {
+                if matches.len() > *max_matches {
+                    matches.truncate(*max_matches);
+                }
+            }
 
             if matches.is_empty() {
                 println!("{}", "No matches found".yellow());
             } else {
-                // For now, use the original text output since we need to convert matches
                 println!(
                     "\n{} {} {}",
                     "Found".green(),
@@ -115,7 +125,6 @@ fn main() -> RfgrepResult<()> {
                 }
             }
 
-            // Report collected errors
             let collected_errors = processing_errors.into_inner().unwrap();
             if !collected_errors.is_empty() {
                 eprintln!("\n{}", "Errors encountered during processing:".red().bold());
@@ -138,6 +147,16 @@ fn main() -> RfgrepResult<()> {
             long,
             recursive,
             show_hidden,
+            max_size,
+            min_size,
+            detailed,
+            simple,
+            stats,
+            sort,
+            reverse,
+            limit,
+            copy,
+            output_format,
         } => {
             let files = Mutex::new(Vec::new());
             let total_size = AtomicU64::new(0);
@@ -156,7 +175,6 @@ fn main() -> RfgrepResult<()> {
                     return;
                 }
 
-                // Process file and collect errors
                 match fs::metadata(path).map_err(RfgrepError::Io) {
                     Ok(metadata) => {
                         let ext = path
@@ -169,7 +187,7 @@ fn main() -> RfgrepResult<()> {
                             path: path.to_path_buf(),
                             size: metadata.len(),
                             extension: ext.clone(),
-                            is_binary: processor::is_binary(path), // Assuming is_binary handles its own errors or is infallible
+                            is_binary: processor::is_binary(path),
                         };
 
                         {
@@ -178,29 +196,27 @@ fn main() -> RfgrepResult<()> {
                         }
                         total_size.fetch_add(metadata.len(), Ordering::Relaxed);
                         {
-                            // Use a block to ensure the lock is released
                             let mut files_locked = files.lock().unwrap();
                             files_locked.push(file_info);
                         }
                     }
                     Err(e) => {
-                        // Collect the error
                         let mut errors = processing_errors.lock().unwrap();
                         errors.push(e);
                     }
                 }
             });
 
-            let mut files = files.into_inner().unwrap(); // Mutex unwrap is safe here
+            let mut files = files.into_inner().unwrap();
             files.par_sort_by_key(|f| f.size);
 
             if *long {
                 print_long_format(&files);
             } else {
                 print_simple_list(&files);
-            } // Assuming print functions handle their own errors or are infallible
+            } 
 
-            let extension_counts_map = extension_counts.into_inner().unwrap(); // Mutex unwrap is safe here
+            let extension_counts_map = extension_counts.into_inner().unwrap();
             let mut ext_counts: Vec<_> = extension_counts_map.into_iter().collect();
             ext_counts.par_sort_by(|a, b| b.1.cmp(&a.1));
 
@@ -219,7 +235,6 @@ fn main() -> RfgrepResult<()> {
                 println!("  {}: {}", format!(".{ext}").cyan(), count);
             }
 
-            // Report collected errors for list command
             let collected_errors = processing_errors.into_inner().unwrap();
             if !collected_errors.is_empty() {
                 eprintln!("\n{}", "Errors encountered during processing:".red().bold());
@@ -242,20 +257,17 @@ fn main() -> RfgrepResult<()> {
             use crate::interactive::InteractiveSearchBuilder;
             use crate::search_algorithms::SearchAlgorithm;
 
-            // Convert CLI algorithm to search algorithm
             let search_algorithm = match algorithm {
                 cli::InteractiveAlgorithm::BoyerMoore => SearchAlgorithm::BoyerMoore,
                 cli::InteractiveAlgorithm::Regex => SearchAlgorithm::Regex,
                 cli::InteractiveAlgorithm::Simple => SearchAlgorithm::Simple,
             };
 
-            // Collect files to search
             let files: Vec<_> = walk_dir(&cli.path, *recursive, false)
-                .filter(|entry| entry.file_type().is_file())
+                .filter(|entry| entry.path().is_file())
                 .map(|entry| entry.path().to_path_buf())
                 .collect();
 
-            // Filter by extensions if specified
             let filtered_files: Vec<_> = if let Some(exts) = extensions {
                 files
                     .into_iter()
@@ -278,7 +290,6 @@ fn main() -> RfgrepResult<()> {
             println!("Files to search: {}", filtered_files.len());
             println!("{}", "Press 'q' to quit, 'h' for help".dimmed());
 
-            // Create interactive search session
             let config = PerformanceConfig::default();
             let mut interactive_search = InteractiveSearchBuilder::new(pattern)
                 .algorithm(search_algorithm)
@@ -286,7 +297,6 @@ fn main() -> RfgrepResult<()> {
                 .config(config)
                 .build();
 
-            // Run interactive session
             if let Err(e) = interactive_search.run() {
                 eprintln!("{}", format!("Interactive mode error: {e}").red());
                 return Err(RfgrepError::Io(e));
@@ -305,7 +315,6 @@ fn main() -> RfgrepResult<()> {
 fn setup_logging(cli: &Cli) -> RfgrepResult<()> {
     let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
 
-    // Configure log format to include timestamp, level, and module
     builder.format(|buf, record| {
         use std::io::Write;
         writeln!(
@@ -332,7 +341,7 @@ fn setup_logging(cli: &Cli) -> RfgrepResult<()> {
 
     builder
         .try_init()
-        .map_err(|e| RfgrepError::Other(e.to_string()))?; // Map logging error
+        .map_err(|e| RfgrepError::Other(e.to_string()))?;
     Ok(())
 }
 
@@ -345,15 +354,13 @@ fn build_regex(pattern: &str, mode: &SearchMode) -> RfgrepResult<Regex> {
     Regex::new(&pattern).map_err(RfgrepError::Regex)
 }
 
-// Note: process_file will be updated in the next step to return RfgrepResult
-// For now, we keep its signature and handle the error mapping in the caller.
 fn process_file(
     path: &Path,
     cli: &Cli,
     regex: &Regex,
     pb: &ProgressBar,
 ) -> RfgrepResult<Vec<String>> {
-    // Changed return type to RfgrepResult
+    // todo: Changed return type to RfgrepResult
     if let Commands::Search {
         extensions: Some(exts),
         ..
@@ -392,7 +399,6 @@ fn process_file(
     }
 
     search_file(path, regex).map_err(|e| RfgrepError::FileProcessing {
-        // Map search_file error to FileProcessing
         path: path.to_path_buf(),
         source: Box::new(e),
     })
