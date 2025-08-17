@@ -33,7 +33,6 @@ pub struct SearchConfig {
 
 #[derive(Serialize, Deserialize)]
 pub struct DisplayConfig {
-    // pub colors: ColorScheme,
     #[serde(skip)]
     pub progress_style: Option<indicatif::ProgressStyle>,
     pub show_timing: bool,
@@ -81,22 +80,16 @@ impl Default for IgnoreConfig {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PerformanceConfig {
-    /// Adaptive memory mapping threshold (in MB)
     #[serde(default = "default_mmap_threshold")]
     pub mmap_threshold_mb: u64,
-    /// Maximum memory usage (in MB)
     #[serde(default = "default_max_memory")]
     pub max_memory_usage_mb: u64,
-    /// Chunk size multiplier for parallel processing
     #[serde(default = "default_chunk_multiplier")]
     pub chunk_size_multiplier: f64,
-    /// Enable adaptive memory management
     #[serde(default = "default_adaptive_memory")]
     pub adaptive_memory: bool,
-    /// Cache size for regex patterns
     #[serde(default = "default_regex_cache_size")]
     pub regex_cache_size: usize,
-    /// File metadata cache size
     #[serde(default = "default_metadata_cache_size")]
     pub metadata_cache_size: usize,
 }
@@ -149,7 +142,6 @@ impl Config {
 
     #[allow(dead_code)]
     fn find_config_path() -> Result<Option<PathBuf>> {
-        // Check XDG config directory
         if let Some(xdg_config) = dirs::config_dir() {
             let xdg_path = xdg_config.join("rfgrep/config.toml");
             if xdg_path.exists() {
@@ -157,7 +149,6 @@ impl Config {
             }
         }
 
-        // Check home directory
         if let Some(home) = dirs::home_dir() {
             let home_path = home.join(".rfgrep.toml");
             if home_path.exists() {
@@ -165,7 +156,6 @@ impl Config {
             }
         }
 
-        // Check current directory
         let current_path = Path::new(".rfgrep.toml");
         if current_path.exists() {
             return Ok(Some(current_path.to_path_buf()));
@@ -197,9 +187,9 @@ impl Default for Config {
             search: SearchConfig {
                 default_mode: SearchMode::Regex,
                 context_lines: 2,
-                max_file_size: Some(100), // 100MB
+                max_file_size: Some(100), 
                 chunk_size: 100,
-                parallel_jobs: None, // Auto-detect
+                parallel_jobs: None,
                 default_extensions: vec![],
             },
             display: DisplayConfig::default(),
