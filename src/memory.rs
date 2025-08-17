@@ -44,7 +44,7 @@ impl AdaptiveMemoryManager {
         let multiplier = self.config.chunk_size_multiplier;
         let cpu_cores = num_cpus::get();
 
-        let memory_factor = 1.0; // Simplified for now
+        let memory_factor = 1.0; 
         let cpu_factor = cpu_cores as f64;
 
         let adjusted_chunk_size =
@@ -69,7 +69,6 @@ impl AdaptiveMemoryManager {
 
     #[allow(dead_code)]
     fn get_available_memory(&self) -> u64 {
-        // Simplified: assume 8GB if we can't get system info
         8 * 1024 * 1024 * 1024
     }
 
@@ -96,7 +95,6 @@ pub struct MemoryStats {
 }
 
 impl AdaptiveMemoryManager {
-    /// Get memory statistics
     #[allow(dead_code)]
     pub fn get_stats(&self) -> MemoryStats {
         MemoryStats {
@@ -104,7 +102,7 @@ impl AdaptiveMemoryManager {
             peak_usage: self.get_current_memory_usage(), // TODO: track peak
             available_memory: self.get_available_memory(),
             mmap_threshold: self.get_mmap_threshold(),
-            chunk_size: self.get_chunk_size(100), // Example chunk size
+            chunk_size: self.get_chunk_size(100),
         }
     }
 }
