@@ -36,9 +36,8 @@ impl BoyerMoore {
     /// Build the good suffix table for Boyer-Moore algorithm
     fn build_good_suffix_table(pattern: &[u8]) -> Vec<usize> {
         let pattern_len = pattern.len();
-        let mut table = vec![1; pattern_len]; // Default shift of 1
+        let mut table = vec![1; pattern_len]; 
 
-        // Simplified implementation to avoid index issues
         if pattern_len > 1 {
             table[pattern_len - 2] = pattern_len;
         }
@@ -62,7 +61,6 @@ impl BoyerMoore {
             let mut j = pattern_len - 1;
             let mut k = i;
 
-            // Compare pattern from right to left
             while j > 0 && text_bytes[k] == self.pattern[j] {
                 k -= 1;
                 j -= 1;
@@ -72,7 +70,6 @@ impl BoyerMoore {
                 matches.push(k);
             }
 
-            // Calculate shift distance
             let bad_char_shift = self
                 .bad_char_table
                 .get(&text_bytes[i])
