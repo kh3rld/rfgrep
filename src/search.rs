@@ -57,13 +57,13 @@ impl SearchExecutor {
                 }
 
                 // Replace let-chain with nested ifs for metadata check
-                if let Some(max_size) = config.search.max_file_size {
-                    if let Ok(metadata) = path.metadata() {
-                        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-                        if size_mb > max_size as f64 {
-                            debug!("Skipping large file ({}MB): {}", size_mb.round(), file_name);
-                            return None;
-                        }
+                if let Some(max_size) = config.search.max_file_size
+                    && let Ok(metadata) = path.metadata()
+                {
+                    let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+                    if size_mb > max_size as f64 {
+                        debug!("Skipping large file ({}MB): {}", size_mb.round(), file_name);
+                        return None;
                     }
                 }
 

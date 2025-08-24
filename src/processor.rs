@@ -37,15 +37,15 @@ lazy_static! {
 }
 
 pub fn is_binary(file: &Path) -> bool {
-    if let Ok(Some(k)) = infer::get_from_path(file) {
-        if !k.mime_type().starts_with("text/") {
-            debug!(
-                "Infer detected binary for {}: {}",
-                file.display(),
-                k.mime_type()
-            );
-            return true;
-        }
+    if let Ok(Some(k)) = infer::get_from_path(file)
+        && !k.mime_type().starts_with("text/")
+    {
+        debug!(
+            "Infer detected binary for {}: {}",
+            file.display(),
+            k.mime_type()
+        );
+        return true;
     }
 
     if let Ok(mut f) = File::open(file) {
