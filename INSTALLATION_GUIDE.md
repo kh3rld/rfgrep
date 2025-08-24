@@ -1,13 +1,10 @@
 # rfgrep Installation Guide
 
-This guide provides comprehensive instructions for installing rfgrep v0.2.0, including the main program, man pages, and shell completions.
+This guide provides comprehensive instructions for installing rfgrep v0.2.1, including the main program, man pages, and shell completions.
 
 ## Version Information
 
-- **Current Version**: 0.2.0
-- **Release Date**: 2025-08-05
-- **Rust Edition**: 2024
-- **Minimum Rust Version**: 1.70+
+ **Current Version**: 0.2.1
 
 ## Quick Installation
 
