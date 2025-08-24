@@ -187,7 +187,7 @@ impl Default for Config {
             search: SearchConfig {
                 default_mode: SearchMode::Regex,
                 context_lines: 2,
-                max_file_size: Some(100), 
+                max_file_size: Some(100),
                 chunk_size: 100,
                 parallel_jobs: None,
                 default_extensions: vec![],

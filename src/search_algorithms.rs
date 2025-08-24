@@ -36,7 +36,7 @@ impl BoyerMoore {
     /// Build the good suffix table for Boyer-Moore algorithm
     fn build_good_suffix_table(pattern: &[u8]) -> Vec<usize> {
         let pattern_len = pattern.len();
-        let mut table = vec![1; pattern_len]; 
+        let mut table = vec![1; pattern_len];
 
         if pattern_len > 1 {
             table[pattern_len - 2] = pattern_len;

@@ -1,4 +1,4 @@
-use ignore::{WalkBuilder, DirEntry};
+use ignore::{DirEntry, WalkBuilder};
 use std::path::Path;
 
 pub fn walk_dir(path: &Path, recursive: bool, show_hidden: bool) -> impl Iterator<Item = DirEntry> {

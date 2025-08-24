@@ -33,7 +33,7 @@ impl AppConfig {
         std::fs::create_dir_all(&results_dir).expect("Failed to create results directory");
 
         AppConfig {
-            chunk_size: Some(100), 
+            chunk_size: Some(100),
             rfgrep_exe,
             results_dir,
         }

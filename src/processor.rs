@@ -14,8 +14,8 @@ use std::sync::Mutex;
 use std::time::Instant;
 const CONTEXT_LINES: usize = 2;
 const BINARY_CHECK_SIZE: usize = 8000;
-const MMAP_THRESHOLD: u64 = 16 * 1024 * 1024; 
-const REGEX_CACHE_SIZE: usize = 100; 
+const MMAP_THRESHOLD: u64 = 16 * 1024 * 1024;
+const REGEX_CACHE_SIZE: usize = 100;
 
 #[derive(Debug)]
 pub struct SearchMatch {
@@ -53,7 +53,7 @@ pub fn is_binary(file: &Path) -> bool {
         if let Ok(n) = file.read(&mut buffer) {
             if n > 0 {
                 let null_bytes = buffer[..n].iter().filter(|&&b| b == 0).count();
-                let binary_threshold = (n as f64 * 0.1).max(1.0); 
+                let binary_threshold = (n as f64 * 0.1).max(1.0);
                 if null_bytes as f64 > binary_threshold {
                     debug!(
                         "Null byte heuristic detected binary file for {}",
@@ -86,7 +86,7 @@ pub fn get_or_compile_regex(pattern: &str) -> RfgrepResult<Regex> {
         Ok(regex.clone())
     } else {
         debug!("Regex cache miss for pattern: {pattern}. Compiling.");
-        let regex = Regex::new(pattern).map_err(RfgrepError::Regex)?; 
+        let regex = Regex::new(pattern).map_err(RfgrepError::Regex)?;
         cache.put(pattern.to_string(), regex.clone());
         Ok(regex)
     }
@@ -113,8 +113,8 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<String>> {
                 debug!("Successfully memory mapped file: {file_display}");
                 if is_binary_content(&mmap) {
                     info!("Skipping binary file (mmap): {file_display}");
-                    return Ok(vec![]); 
-                } 
+                    return Ok(vec![]);
+                }
                 let content = unsafe { std::str::from_utf8_unchecked(&mmap) };
                 find_matches_with_context(content.to_string(), pattern, path)?
             }
@@ -156,7 +156,7 @@ fn find_matches_with_context(
             // Get context before
             let start_idx = i.saturating_sub(CONTEXT_LINES);
             let context_before: Vec<(usize, String)> = (start_idx..i)
-                .map(|idx| (idx + 1, lines[idx].clone())) 
+                .map(|idx| (idx + 1, lines[idx].clone()))
                 .collect();
 
             let end_idx = (i + CONTEXT_LINES + 1).min(lines.len());
@@ -259,7 +259,7 @@ fn format_matches(
 
         for (i, m) in matches.iter().enumerate() {
             if i > 0 {
-                output.push("".to_string()); 
+                output.push("".to_string());
             }
 
             for (num, line) in &m.context_before {

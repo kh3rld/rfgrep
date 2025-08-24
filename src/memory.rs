@@ -44,7 +44,7 @@ impl AdaptiveMemoryManager {
         let multiplier = self.config.chunk_size_multiplier;
         let cpu_cores = num_cpus::get();
 
-        let memory_factor = 1.0; 
+        let memory_factor = 1.0;
         let cpu_factor = cpu_cores as f64;
 
         let adjusted_chunk_size =

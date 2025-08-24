@@ -214,7 +214,7 @@ fn main() -> RfgrepResult<()> {
                 print_long_format(&files);
             } else {
                 print_simple_list(&files);
-            } 
+            }
 
             let extension_counts_map = extension_counts.into_inner().unwrap();
             let mut ext_counts: Vec<_> = extension_counts_map.into_iter().collect();
