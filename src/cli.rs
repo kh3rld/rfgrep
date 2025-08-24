@@ -47,19 +47,19 @@ pub struct Cli {
     #[clap(default_value = ".")]
     pub path: PathBuf,
 
-    #[clap(long, value_parser, default_value_t = false)]
+    #[clap(long, value_parser, default_value_t = false, global = true)]
     pub verbose: bool,
 
-    #[clap(long, value_parser)]
+    #[clap(long, value_parser, global = true)]
     pub log: Option<PathBuf>,
 
-    #[clap(long, value_parser, default_value_t = false)]
+    #[clap(long, value_parser, default_value_t = false, global = true)]
     pub dry_run: bool,
 
-    #[clap(long, value_parser)]
+    #[clap(long, value_parser, global = true)]
     pub max_size: Option<usize>,
 
-    #[clap(long, value_parser, default_value_t = false)]
+    #[clap(long, value_parser, default_value_t = false, global = true)]
     pub skip_binary: bool,
 
     #[clap(subcommand)]
@@ -95,7 +95,7 @@ PERFORMANCE TIPS:
     Search {
         pattern: String,
 
-        #[clap(value_parser, default_value_t = SearchMode::Text)]
+        #[clap(long, value_enum, default_value_t = SearchMode::Text)]
         mode: SearchMode,
 
         #[clap(long, value_parser, default_value_t = false)]
@@ -124,6 +124,13 @@ PERFORMANCE TIPS:
 
         #[clap(long, value_enum, default_value_t = SearchAlgorithm::BoyerMoore)]
         algorithm: SearchAlgorithm,
+
+        #[clap(value_parser, last = true)]
+        path: Option<PathBuf>,
+
+        /// Alternative explicit path flag (useful for scripts)
+        #[clap(long, value_parser, alias = "path-flag")]
+        path_flag: Option<PathBuf>,
     },
 
     #[clap(after_help = r#"
@@ -159,6 +166,13 @@ EXAMPLES:
 
         #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
+
+        #[clap(value_parser, last = true)]
+        path: Option<PathBuf>,
+
+        /// Alternative explicit path flag (useful for scripts)
+        #[clap(long, value_parser, alias = "path-flag")]
+        path_flag: Option<PathBuf>,
     },
     #[clap(after_help = r#"
 OUTPUT FORMATS:
@@ -227,6 +241,14 @@ FEATURES:
 
         #[clap(long, value_enum, default_value_t = OutputFormat::Text)]
         output_format: OutputFormat,
+
+        // Optional trailing path allowing `rfgrep list <options> <path>`
+        #[clap(value_parser, last = true)]
+        path: Option<PathBuf>,
+
+        /// Alternative explicit path flag (useful for scripts)
+        #[clap(long, value_parser, alias = "path-flag")]
+        path_flag: Option<PathBuf>,
     },
     #[clap(after_help = r#"
 SUPPORTED SHELLS:
