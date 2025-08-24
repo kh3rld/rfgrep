@@ -1,5 +1,4 @@
 pub mod cli;
-pub mod clipboard;
 mod config;
 pub mod error;
 mod interactive;
@@ -12,7 +11,7 @@ mod search;
 mod search_algorithms;
 pub mod walker;
 use crate::config::Config;
-pub use anyhow::{Context, Result};
+pub use crate::error::Result;
 pub use clap::Parser;
 pub use cli::{Cli, Commands, SearchMode};
 pub use list::{FileInfo, print_long_format, print_simple_list, should_list_file};
@@ -34,7 +33,7 @@ impl AppConfig {
         std::fs::create_dir_all(&results_dir).expect("Failed to create results directory");
 
         AppConfig {
-            chunk_size: Some(100), // Default chunk size
+            chunk_size: Some(100),
             rfgrep_exe,
             results_dir,
         }
@@ -43,11 +42,9 @@ impl AppConfig {
 
 pub fn load_config() -> AppConfig {
     let mut cfg = Config::default();
-    // Load config from file if available
     if let Ok(config) = Config::load() {
         cfg = config;
     }
-    // Convert to AppConfig
     AppConfig {
         chunk_size: Some(cfg.search.chunk_size as u32),
         rfgrep_exe: std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("rfgrep")),
@@ -101,7 +98,7 @@ pub fn run_benchmarks_cli(cli: &Cli) -> Result<()> {
     let test_dir = cli.path.join("test_data");
 
     if !test_dir.exists() {
-        std::fs::create_dir_all(&test_dir).context("Failed to create test directory")?;
+        std::fs::create_dir_all(&test_dir).map_err(crate::error::RfgrepError::Io)?;
     }
 
     run_benchmarks(&config, &test_dir)

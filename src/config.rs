@@ -1,5 +1,5 @@
 use crate::cli::SearchMode;
-use anyhow::{Context, Result};
+use crate::error::{Result as RfgrepResult, RfgrepError};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
@@ -33,7 +33,6 @@ pub struct SearchConfig {
 
 #[derive(Serialize, Deserialize)]
 pub struct DisplayConfig {
-    // pub colors: ColorScheme,
     #[serde(skip)]
     pub progress_style: Option<indicatif::ProgressStyle>,
     pub show_timing: bool,
@@ -81,22 +80,16 @@ impl Default for IgnoreConfig {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PerformanceConfig {
-    /// Adaptive memory mapping threshold (in MB)
     #[serde(default = "default_mmap_threshold")]
     pub mmap_threshold_mb: u64,
-    /// Maximum memory usage (in MB)
     #[serde(default = "default_max_memory")]
     pub max_memory_usage_mb: u64,
-    /// Chunk size multiplier for parallel processing
     #[serde(default = "default_chunk_multiplier")]
     pub chunk_size_multiplier: f64,
-    /// Enable adaptive memory management
     #[serde(default = "default_adaptive_memory")]
     pub adaptive_memory: bool,
-    /// Cache size for regex patterns
     #[serde(default = "default_regex_cache_size")]
     pub regex_cache_size: usize,
-    /// File metadata cache size
     #[serde(default = "default_metadata_cache_size")]
     pub metadata_cache_size: usize,
 }
@@ -135,21 +128,28 @@ impl Default for PerformanceConfig {
 
 impl Config {
     #[allow(dead_code)]
-    pub fn load() -> Result<Self> {
-        let config_path = Self::find_config_path()?;
+    pub fn load() -> RfgrepResult<Self> {
+        let config_path =
+            Self::find_config_path().map_err(|e| RfgrepError::Other(e.to_string()))?;
         if let Some(path) = config_path {
             let content = fs::read_to_string(&path)
-                .with_context(|| format!("Failed to read config file: {}", path.display()))?;
+                .map_err(RfgrepError::Io)
+                .map_err(|e| {
+                    RfgrepError::Other(format!(
+                        "Failed to read config file: {}: {e}",
+                        path.display()
+                    ))
+                })?;
 
-            toml::from_str(&content).with_context(|| "Failed to parse config file")
+            toml::from_str(&content)
+                .map_err(|e| RfgrepError::Other(format!("Failed to parse config file: {e}")))
         } else {
             Ok(Self::default())
         }
     }
 
     #[allow(dead_code)]
-    fn find_config_path() -> Result<Option<PathBuf>> {
-        // Check XDG config directory
+    fn find_config_path() -> RfgrepResult<Option<PathBuf>> {
         if let Some(xdg_config) = dirs::config_dir() {
             let xdg_path = xdg_config.join("rfgrep/config.toml");
             if xdg_path.exists() {
@@ -157,7 +157,6 @@ impl Config {
             }
         }
 
-        // Check home directory
         if let Some(home) = dirs::home_dir() {
             let home_path = home.join(".rfgrep.toml");
             if home_path.exists() {
@@ -165,7 +164,6 @@ impl Config {
             }
         }
 
-        // Check current directory
         let current_path = Path::new(".rfgrep.toml");
         if current_path.exists() {
             return Ok(Some(current_path.to_path_buf()));
@@ -175,17 +173,15 @@ impl Config {
     }
 
     #[allow(dead_code)]
-    pub fn save(&self, path: &Path) -> Result<()> {
-        let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
+    pub fn save(&self, path: &Path) -> RfgrepResult<()> {
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| RfgrepError::Other(format!("Failed to serialize config: {e}")))?;
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).with_context(|| {
-                format!("Failed to create config directory: {}", parent.display())
-            })?;
+            fs::create_dir_all(parent).map_err(RfgrepError::Io)?;
         }
 
-        fs::write(path, content)
-            .with_context(|| format!("Failed to write config file: {}", path.display()))?;
+        fs::write(path, content).map_err(RfgrepError::Io)?;
 
         Ok(())
     }
@@ -197,9 +193,9 @@ impl Default for Config {
             search: SearchConfig {
                 default_mode: SearchMode::Regex,
                 context_lines: 2,
-                max_file_size: Some(100), // 100MB
+                max_file_size: Some(100),
                 chunk_size: 100,
-                parallel_jobs: None, // Auto-detect
+                parallel_jobs: None,
                 default_extensions: vec![],
             },
             display: DisplayConfig::default(),

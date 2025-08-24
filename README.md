@@ -262,25 +262,25 @@ rfgrep completions fish > ~/.config/fish/completions/rfgrep.fish
 
 ### Search Command
 
-| Option            | Description                          |
-|-------------------|--------------------------------------|
-| `--mode MODE`     | Search mode: regex/text/word         |
-| `--extensions EXT`| Comma-separated file extensions      |
-| `--max-size MB`   | Skip files larger than specified MB  |
-| `--skip-binary`   | Skip binary files                   |
-| `--dry-run`       | Preview files without processing     |
-| `--copy`          | Copy results to clipboard           |
+| Option             | Description                         |
+|--------------------|-------------------------------------|
+| `--mode MODE`      | Search mode: regex/text/word        |
+| `--extensions EXT` | Comma-separated file extensions     |
+| `--max-size MB`    | Skip files larger than specified MB |
+| `--skip-binary`    | Skip binary files                   |
+| `--dry-run`        | Preview files without processing    |
+| `--copy`           | Copy results to clipboard           |
 
 ### List Command
 
-| Option            | Description                          |
-|-------------------|--------------------------------------|
-| `--extensions EXT`| Comma-separated file extensions      |
-| `--long`          | Detailed output format              |
-| `--recursive`     | Recursive directory traversal       |
-| `--show-hidden`   | Include hidden files/directories    |
-| `--max-size MB`   | Skip files larger than specified MB  |
-| `--skip-binary`   | Skip binary files                   |
+| Option             | Description                         |
+|--------------------|-------------------------------------|
+| `--extensions EXT` | Comma-separated file extensions     |
+| `--long`           | Detailed output format              |
+| `--recursive`      | Recursive directory traversal       |
+| `--show-hidden`    | Include hidden files/directories    |
+| `--max-size MB`    | Skip files larger than specified MB |
+| `--skip-binary`    | Skip binary files                   |
 
 ## Examples
 
@@ -290,13 +290,13 @@ rfgrep completions fish > ~/.config/fish/completions/rfgrep.fish
 rfgrep search "HashMap" --extensions rs
 ```
 
-2. List all Markdown files under 1MB:
+1. List all Markdown files under 1MB:
 
 ```bash
 rfgrep list --extensions md --max-size 1
 ```
 
-3. Search with regex and copy to clipboard:
+1. Search with regex and copy to clipboard:
 
 ```bash
 rfgrep search "fn\s+\w+\s*\(" --mode regex --copy
@@ -384,6 +384,10 @@ rfgrep list --extensions rs
 # Test interactive mode
 rfgrep interactive "test" --extensions rs
 ```
+
+### Clipboard behavior in CI/headless environments
+
+Note: the `--copy` option attempts to use the system clipboard and may fail in headless CI environments (X11/Wayland not available). In those environments run without `--copy` or provide a virtual display (Xvfb) or configure your CI to provide a clipboard service. The application will log a warning if the clipboard operation times out.
 
 ### Automated Testing
 ```bash

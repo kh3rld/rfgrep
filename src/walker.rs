@@ -1,29 +1,15 @@
+use ignore::{DirEntry, WalkBuilder};
 use std::path::Path;
-use walkdir::{DirEntry, WalkDir};
-
-const IGNORED_DIRS: [&str; 4] = [".git", "node_modules", ".idea", "target"];
 
 pub fn walk_dir(path: &Path, recursive: bool, show_hidden: bool) -> impl Iterator<Item = DirEntry> {
-    WalkDir::new(path)
-        .into_iter()
-        .filter_entry(move |e| {
-            let is_hidden = e
-                .file_name()
-                .to_str()
-                .map(|s| s.starts_with('.'))
-                .unwrap_or(false);
-
-            let ignore_status = if show_hidden {
-                !IGNORED_DIRS.contains(&e.file_name().to_str().unwrap_or(""))
-            } else {
-                !is_hidden && !IGNORED_DIRS.contains(&e.file_name().to_str().unwrap_or(""))
-            };
-
-            if recursive {
-                ignore_status
-            } else {
-                e.depth() == 0 || ignore_status
-            }
-        })
-        .filter_map(|e| e.ok())
+    let max_depth = if recursive { None } else { Some(1) };
+    WalkBuilder::new(path)
+        .hidden(!show_hidden)
+        .git_global(!show_hidden)
+        .git_ignore(!show_hidden)
+        .git_exclude(!show_hidden)
+        .ignore(!show_hidden)
+        .max_depth(max_depth)
+        .build()
+        .filter_map(Result::ok)
 }

@@ -1,4 +1,4 @@
-use crate::search_algorithms::SearchMatch;
+use crate::processor::SearchMatch;
 use serde_json::{Value, json};
 use std::path::Path;
 
