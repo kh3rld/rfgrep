@@ -4,33 +4,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2025-08-05
-
-### Added
-- **Interactive Search Mode**: Real-time search with filtering and navigation
-  - Interactive command-line interface with keyboard shortcuts
-  - Real-time result filtering and refinement
-  - Context viewing and result navigation
-  - Search statistics and performance metrics
-- **Advanced Search Algorithms**: Multiple search algorithm support
-  - Boyer-Moore algorithm for fast plain text search
-  - Regex algorithm for pattern matching
-  - Simple linear search as fallback option
-  - Unified search algorithm trait for extensibility
-- **Multiple Output Formats**: Support for various output formats
-  - Text format with colored highlighting (default)
-  - JSON format for programmatic processing
-  - XML format for structured data
-  - HTML format for web display
-  - Markdown format for documentation
-- **Adaptive Memory Management**: Intelligent memory usage optimization
-  - Dynamic memory mapping thresholds based on system resources
-  # Changelog
-  All notable changes to this project will be documented in this file.
-
-  The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-  and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
   ## [0.2.1] - 2025-08-24
 
   ### Added
