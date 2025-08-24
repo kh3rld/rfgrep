@@ -56,17 +56,25 @@ fn main() -> RfgrepResult<()> {
             invert_match: _,
             max_matches,
             algorithm: _,
+            path: cmd_path,
+            path_flag: cmd_path_flag,
         } => {
+            let search_root = cmd_path_flag
+                .as_ref()
+                .map(|p| p.as_path())
+                .or_else(|| cmd_path.as_ref().map(|p| p.as_path()))
+                .unwrap_or(&cli.path);
+
             let regex = if matches!(mode, SearchMode::Regex) {
                 processor::get_or_compile_regex(pattern)?
             } else {
                 build_regex(pattern, mode)?
             };
-            let matches = Mutex::new(Vec::new());
+            let matches = Mutex::new(Vec::<processor::SearchMatch>::new());
             let processing_errors = Mutex::new(Vec::<RfgrepError>::new()); // Mutex to collect errors
 
             // Collect all files first
-            let files: Vec<_> = walk_dir(&cli.path, *recursive, false)
+            let files: Vec<_> = walk_dir(search_root, *recursive, false)
                 .filter(|entry| entry.path().is_file())
                 .collect();
 
@@ -115,13 +123,24 @@ fn main() -> RfgrepResult<()> {
                     matches.len(),
                     "matches:".green()
                 );
-                for m in &matches {
-                    println!("{m}");
-                }
 
-                // TODO: Integrate output formats when SearchMatch conversion is ready
-                if matches!(output_format, cli::OutputFormat::Json) {
-                    println!("\n{}", "JSON output format not yet integrated".yellow());
+                // Structured output via OutputFormatter
+                use crate::output_formats::{OutputFormat, OutputFormatter};
+                match output_format {
+                    cli::OutputFormat::Json => {
+                        let formatter = OutputFormatter::new(OutputFormat::Json);
+                        // Use the search root as path metadata
+                        let path = std::path::Path::new(&cli.path);
+                        let json_out = formatter.format_results(&matches, pattern, path);
+                        println!("\n{json_out}");
+                    }
+                    _ => {
+                        // Fallback to plain text printer
+                        let formatter = OutputFormatter::new(OutputFormat::Text);
+                        let path = std::path::Path::new(&cli.path);
+                        let text_out = formatter.format_results(&matches, pattern, path);
+                        println!("{text_out}");
+                    }
                 }
             }
 
@@ -134,11 +153,52 @@ fn main() -> RfgrepResult<()> {
             }
 
             if *copy && !matches.is_empty() {
-                let mut clipboard = arboard::Clipboard::new().map_err(RfgrepError::Clipboard)?;
-                clipboard
-                    .set_text(matches.join("\n"))
-                    .map_err(RfgrepError::Clipboard)?;
-                println!("\n{}", "Results copied to clipboard!".green());
+                // Attempt to use system clipboard; in CI/headless environments fall back to a temp file
+                // For clipboard/text we'll produce a text representation
+                use crate::output_formats::{OutputFormat, OutputFormatter};
+                let formatter = OutputFormatter::new(OutputFormat::Text);
+                let path = std::path::Path::new(&cli.path);
+                let joined = formatter.format_results(&matches, pattern, path);
+                let can_use_clipboard =
+                    std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
+
+                if can_use_clipboard {
+                    match arboard::Clipboard::new() {
+                        Ok(mut clipboard) => match clipboard.set_text(joined.clone()) {
+                            Ok(_) => println!("\n{}", "Results copied to clipboard!".green()),
+                            Err(e) => {
+                                warn!("Clipboard set failed: {e}. Falling back to temp file.");
+                                let tmp = std::env::temp_dir().join("rfgrep_copy.txt");
+                                if let Err(e) = std::fs::write(&tmp, joined) {
+                                    warn!("Failed to write fallback clipboard file: {e}");
+                                } else {
+                                    println!(
+                                        "\n{} {}",
+                                        "Results written to".green(),
+                                        tmp.display()
+                                    );
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            warn!("Clipboard init failed: {e}. Falling back to temp file.");
+                            let tmp = std::env::temp_dir().join("rfgrep_copy.txt");
+                            if let Err(e) = std::fs::write(&tmp, joined) {
+                                warn!("Failed to write fallback clipboard file: {e}");
+                            } else {
+                                println!("\n{} {}", "Results written to".green(), tmp.display());
+                            }
+                        }
+                    }
+                } else {
+                    // Headless environment: write to temp file and inform the user
+                    let tmp = std::env::temp_dir().join("rfgrep_copy.txt");
+                    if let Err(e) = std::fs::write(&tmp, joined) {
+                        warn!("Failed to write fallback clipboard file: {e}");
+                    } else {
+                        println!("\n{} {}", "Results written to".green(), tmp.display());
+                    }
+                }
             }
         }
 
@@ -157,13 +217,20 @@ fn main() -> RfgrepResult<()> {
             limit: _,
             copy: _,
             output_format: _,
+            path: cmd_path,
+            path_flag: cmd_path_flag,
         } => {
+            let list_root = cmd_path_flag
+                .as_ref()
+                .map(|p| p.as_path())
+                .or_else(|| cmd_path.as_ref().map(|p| p.as_path()))
+                .unwrap_or(&cli.path);
             let files = Mutex::new(Vec::new());
             let total_size = AtomicU64::new(0);
             let extension_counts = Mutex::new(std::collections::HashMap::new());
             let processing_errors = Mutex::new(Vec::<RfgrepError>::new()); // Mutex to collect errors
 
-            let entries: Vec<_> = walk_dir(&cli.path, *recursive, *show_hidden).collect();
+            let entries: Vec<_> = walk_dir(list_root, *recursive, *show_hidden).collect();
 
             entries.par_iter().for_each(|entry| {
                 let path = entry.path();
@@ -252,10 +319,18 @@ fn main() -> RfgrepResult<()> {
             algorithm,
             extensions,
             recursive,
+            path: cmd_path,
+            path_flag: cmd_path_flag,
         } => {
             use crate::config::PerformanceConfig;
             use crate::interactive::InteractiveSearchBuilder;
             use crate::search_algorithms::SearchAlgorithm;
+
+            let interactive_root = cmd_path_flag
+                .as_ref()
+                .map(|p| p.as_path())
+                .or_else(|| cmd_path.as_ref().map(|p| p.as_path()))
+                .unwrap_or(&cli.path);
 
             let search_algorithm = match algorithm {
                 cli::InteractiveAlgorithm::BoyerMoore => SearchAlgorithm::BoyerMoore,
@@ -263,7 +338,7 @@ fn main() -> RfgrepResult<()> {
                 cli::InteractiveAlgorithm::Simple => SearchAlgorithm::Simple,
             };
 
-            let files: Vec<_> = walk_dir(&cli.path, *recursive, false)
+            let files: Vec<_> = walk_dir(interactive_root, *recursive, false)
                 .filter(|entry| entry.path().is_file())
                 .map(|entry| entry.path().to_path_buf())
                 .collect();
@@ -359,7 +434,7 @@ fn process_file(
     cli: &Cli,
     regex: &Regex,
     pb: &ProgressBar,
-) -> RfgrepResult<Vec<String>> {
+) -> RfgrepResult<Vec<crate::processor::SearchMatch>> {
     // todo: Changed return type to RfgrepResult
     if let Commands::Search {
         extensions: Some(exts),
