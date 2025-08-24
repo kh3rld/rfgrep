@@ -100,10 +100,10 @@ fn main() -> RfgrepResult<()> {
             matches.sort();
 
             // Apply max_matches limit if specified
-            if let Some(max_matches) = max_matches {
-                if matches.len() > *max_matches {
-                    matches.truncate(*max_matches);
-                }
+            if let Some(max_matches) = max_matches
+                && matches.len() > *max_matches
+            {
+                matches.truncate(*max_matches);
             }
 
             if matches.is_empty() {
@@ -272,10 +272,10 @@ fn main() -> RfgrepResult<()> {
                 files
                     .into_iter()
                     .filter(|path| {
-                        if let Some(ext) = path.extension() {
-                            if let Some(ext_str) = ext.to_str() {
-                                return exts.contains(&ext_str.to_string());
-                            }
+                        if let Some(ext) = path.extension()
+                            && let Some(ext_str) = ext.to_str()
+                        {
+                            return exts.contains(&ext_str.to_string());
                         }
                         false
                     })
@@ -328,10 +328,10 @@ fn setup_logging(cli: &Cli) -> RfgrepResult<()> {
     });
 
     if let Some(log_path) = &cli.log {
-        if let Some(parent_dir) = log_path.parent() {
-            if !parent_dir.exists() {
-                fs::create_dir_all(parent_dir).map_err(RfgrepError::Io)?;
-            }
+        if let Some(parent_dir) = log_path.parent()
+            && !parent_dir.exists()
+        {
+            fs::create_dir_all(parent_dir).map_err(RfgrepError::Io)?;
         }
         let log_file = fs::File::create(log_path).map_err(RfgrepError::Io)?;
         builder.target(Target::Pipe(Box::new(log_file)));
@@ -383,13 +383,13 @@ fn process_file(
         return Ok(vec![]);
     }
 
-    if let Some(max) = cli.max_size {
-        if let Ok(metadata) = path.metadata() {
-            let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-            if size_mb > max as f64 {
-                warn!("Skipping large file ({}MB): {}", size_mb.round(), file_name);
-                return Ok(vec![]);
-            }
+    if let Some(max) = cli.max_size
+        && let Ok(metadata) = path.metadata()
+    {
+        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+        if size_mb > max as f64 {
+            warn!("Skipping large file ({}MB): {}", size_mb.round(), file_name);
+            return Ok(vec![]);
         }
     }
 
