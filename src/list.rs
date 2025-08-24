@@ -27,12 +27,11 @@ pub fn should_list_file(path: &Path, cli: &Cli, extensions: &Option<Vec<String>>
         return false;
     }
 
-    if let Some(max_size) = cli.max_size {
-        if let Ok(metadata) = path.metadata() {
-            if metadata.len() > (max_size as u64) * 1024 * 1024 {
-                return false;
-            }
-        }
+    if let Some(max_size) = cli.max_size
+        && let Ok(metadata) = path.metadata()
+        && metadata.len() > (max_size as u64) * 1024 * 1024
+    {
+        return false;
     }
 
     true
