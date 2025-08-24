@@ -3,7 +3,6 @@ use crate::memory::AdaptiveMemoryManager;
 use crate::search_algorithms::{
     SearchAlgorithm, SearchAlgorithmFactory, SearchAlgorithmTrait, SearchMatch,
 };
-use atty;
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
