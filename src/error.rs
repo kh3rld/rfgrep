@@ -45,9 +45,6 @@ pub enum RfgrepError {
 
     #[error("An unexpected error occurred: {0}")]
     Other(String),
-
-    #[error(transparent)]
-    Anyhow(#[from] anyhow::Error),
 }
 
 pub type Result<T> = std::result::Result<T, RfgrepError>;
