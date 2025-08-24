@@ -11,7 +11,7 @@ mod search;
 mod search_algorithms;
 pub mod walker;
 use crate::config::Config;
-pub use anyhow::{Context, Result};
+pub use crate::error::Result;
 pub use clap::Parser;
 pub use cli::{Cli, Commands, SearchMode};
 pub use list::{FileInfo, print_long_format, print_simple_list, should_list_file};
@@ -98,7 +98,7 @@ pub fn run_benchmarks_cli(cli: &Cli) -> Result<()> {
     let test_dir = cli.path.join("test_data");
 
     if !test_dir.exists() {
-        std::fs::create_dir_all(&test_dir).context("Failed to create test directory")?;
+        std::fs::create_dir_all(&test_dir).map_err(crate::error::RfgrepError::Io)?;
     }
 
     run_benchmarks(&config, &test_dir)
