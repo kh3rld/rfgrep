@@ -1,5 +1,5 @@
 use crate::cli::SearchMode;
-use anyhow::{Context, Result};
+use crate::error::{Result as RfgrepResult, RfgrepError};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
@@ -128,20 +128,28 @@ impl Default for PerformanceConfig {
 
 impl Config {
     #[allow(dead_code)]
-    pub fn load() -> Result<Self> {
-        let config_path = Self::find_config_path()?;
+    pub fn load() -> RfgrepResult<Self> {
+        let config_path =
+            Self::find_config_path().map_err(|e| RfgrepError::Other(e.to_string()))?;
         if let Some(path) = config_path {
             let content = fs::read_to_string(&path)
-                .with_context(|| format!("Failed to read config file: {}", path.display()))?;
+                .map_err(RfgrepError::Io)
+                .map_err(|e| {
+                    RfgrepError::Other(format!(
+                        "Failed to read config file: {}: {e}",
+                        path.display()
+                    ))
+                })?;
 
-            toml::from_str(&content).with_context(|| "Failed to parse config file")
+            toml::from_str(&content)
+                .map_err(|e| RfgrepError::Other(format!("Failed to parse config file: {e}")))
         } else {
             Ok(Self::default())
         }
     }
 
     #[allow(dead_code)]
-    fn find_config_path() -> Result<Option<PathBuf>> {
+    fn find_config_path() -> RfgrepResult<Option<PathBuf>> {
         if let Some(xdg_config) = dirs::config_dir() {
             let xdg_path = xdg_config.join("rfgrep/config.toml");
             if xdg_path.exists() {
@@ -165,17 +173,15 @@ impl Config {
     }
 
     #[allow(dead_code)]
-    pub fn save(&self, path: &Path) -> Result<()> {
-        let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
+    pub fn save(&self, path: &Path) -> RfgrepResult<()> {
+        let content = toml::to_string_pretty(self)
+            .map_err(|e| RfgrepError::Other(format!("Failed to serialize config: {e}")))?;
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).with_context(|| {
-                format!("Failed to create config directory: {}", parent.display())
-            })?;
+            fs::create_dir_all(parent).map_err(RfgrepError::Io)?;
         }
 
-        fs::write(path, content)
-            .with_context(|| format!("Failed to write config file: {}", path.display()))?;
+        fs::write(path, content).map_err(RfgrepError::Io)?;
 
         Ok(())
     }
