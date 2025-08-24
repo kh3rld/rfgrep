@@ -385,6 +385,10 @@ rfgrep list --extensions rs
 rfgrep interactive "test" --extensions rs
 ```
 
+### Clipboard behavior in CI/headless environments
+
+Note: the `--copy` option attempts to use the system clipboard and may fail in headless CI environments (X11/Wayland not available). In those environments run without `--copy` or provide a virtual display (Xvfb) or configure your CI to provide a clipboard service. The application will log a warning if the clipboard operation times out.
+
 ### Automated Testing
 ```bash
 # Test shell completions
