@@ -1,6 +1,6 @@
 [package]
 name = "rfgrep"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Recursive file grep utility with advanced filtering - search, list, and analyze text files with regex support"
 homepage = "https://github.com/kh3rld/rfgrep"
@@ -32,7 +32,6 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-anyhow = "1.0"
 arboard = "3.2"
 atty = "0.2"
 byte-unit = "5.1.6"
