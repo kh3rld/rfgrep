@@ -5,6 +5,7 @@ name: CI
 on:
   push:
     branches: [ main, dev, 'release/**' ]
+    tags: ['v*']
   pull_request:
     branches: [ main, dev ]
   workflow_dispatch:
@@ -186,9 +187,11 @@ jobs:
 
   publish:
     name: Publish to Crates.io
-    needs: [test, lint]
+    needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/'))
+    if: startsWith(github.ref, 'refs/tags/')
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
       - uses: actions/checkout@v5
 
@@ -198,11 +201,9 @@ jobs:
           toolchain: stable
 
       - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish --dry-run
-          cargo publish
+          cargo publish --token "$CARGO_REGISTRY_TOKEN" --dry-run
+          cargo publish --token "$CARGO_REGISTRY_TOKEN"
 
 concurrency:
   group: ${{ github.ref }}

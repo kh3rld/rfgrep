@@ -38,7 +38,7 @@ command_exists() {
 validate_version() {
     local version=$1
     if [[ ! $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        print_error "Invalid version format. Expected format: vX.Y.Z (e.g., v0.2.0)"
+    print_error "Invalid version format. Expected format: vX.Y.Z (e.g., v0.2.1)"
         exit 1
     fi
 }
@@ -187,10 +187,10 @@ Options:
     -p, --package   Create release package only
 
 Examples:
-    $0 v0.2.0              # Full release process
-    $0 -d v0.2.0          # Dry run
+    $0 v0.2.1              # Full release process
+    $0 -d v0.2.1          # Dry run
     $0 -t                  # Run tests only
-    $0 -p v0.2.0          # Create package only
+    $0 -p v0.2.1          # Create package only
 
 The script will:
 1. Validate the version format
