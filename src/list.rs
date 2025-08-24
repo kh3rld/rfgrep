@@ -13,25 +13,28 @@ pub struct FileInfo {
 }
 
 pub fn should_list_file(path: &Path, cli: &Cli, extensions: &Option<Vec<String>>) -> bool {
-    if let Some(exts) = extensions {
-        if let Some(file_ext) = path.extension().and_then(|e| e.to_str()) {
-            if !exts.iter().any(|e| e.eq_ignore_ascii_case(file_ext)) {
-                return false;
-            }
-        } else {
+    // Check extensions (if provided) using a single match to avoid nested `if` collapse lints
+    match (extensions, path.extension().and_then(|e| e.to_str())) {
+        (Some(exts), Some(file_ext)) if !exts.iter().any(|e| e.eq_ignore_ascii_case(file_ext)) => {
             return false;
         }
+        (Some(_), None) => {
+            return false;
+        }
+        _ => {}
     }
 
     if cli.skip_binary && processor::is_binary(path) {
         return false;
     }
 
-    if let Some(max_size) = cli.max_size
-        && let Ok(metadata) = path.metadata()
-        && metadata.len() > (max_size as u64) * 1024 * 1024
-    {
-        return false;
+    // Check max size if configured. Use a match so the intent is explicit and lint-free.
+    match (cli.max_size, path.metadata()) {
+        (Some(max_size), Ok(metadata)) if metadata.len() > (max_size as u64) * 1024 * 1024 => {
+            return false;
+        }
+        // Any other case (no max_size set, or metadata error, or size within limit) -> allow
+        _ => {}
     }
 
     true
