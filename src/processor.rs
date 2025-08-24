@@ -50,17 +50,17 @@ pub fn is_binary(file: &Path) -> bool {
     // Fallback to null byte check for unknown or ambiguous types
     if let Ok(mut file) = File::open(file) {
         let mut buffer = vec![0u8; BINARY_CHECK_SIZE];
-        if let Ok(n) = file.read(&mut buffer) {
-            if n > 0 {
-                let null_bytes = buffer[..n].iter().filter(|&&b| b == 0).count();
-                let binary_threshold = (n as f64 * 0.1).max(1.0);
-                if null_bytes as f64 > binary_threshold {
-                    debug!(
-                        "Null byte heuristic detected binary file for {}",
-                        file.metadata().map(|m| m.len()).unwrap_or(0)
-                    );
-                    return true;
-                }
+        if let Ok(n) = file.read(&mut buffer)
+            && n > 0
+        {
+            let null_bytes = buffer[..n].iter().filter(|&&b| b == 0).count();
+            let binary_threshold = (n as f64 * 0.1).max(1.0);
+            if null_bytes as f64 > binary_threshold {
+                debug!(
+                    "Null byte heuristic detected binary file for {}",
+                    file.metadata().map(|m| m.len()).unwrap_or(0)
+                );
+                return true;
             }
         }
     }
