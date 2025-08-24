@@ -33,7 +33,10 @@ impl SearchExecutor {
     }
 
     #[allow(dead_code)]
-    pub async fn execute(&self, root_path: &Path) -> RfgrepResult<Vec<String>> {
+    pub async fn execute(
+        &self,
+        root_path: &Path,
+    ) -> RfgrepResult<Vec<crate::processor::SearchMatch>> {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let config = self.config.clone();
         let pattern = self.pattern.clone();
@@ -52,15 +55,18 @@ impl SearchExecutor {
                     debug!("Skipping file matching ignore pattern: {file_name}");
                     return None;
                 }
-                if let Some(max_size) = config.search.max_file_size
-                    && let Ok(metadata) = path.metadata()
-                {
-                    let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-                    if size_mb > max_size as f64 {
-                        debug!("Skipping large file ({}MB): {}", size_mb.round(), file_name);
-                        return None;
+
+                // Replace let-chain with nested ifs for metadata check
+                if let Some(max_size) = config.search.max_file_size {
+                    if let Ok(metadata) = path.metadata() {
+                        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+                        if size_mb > max_size as f64 {
+                            debug!("Skipping large file ({}MB): {}", size_mb.round(), file_name);
+                            return None;
+                        }
                     }
                 }
+
                 if config.ignore.binary_files && crate::processor::is_binary(path) {
                     debug!("Skipping binary file: {file_name}");
                     return None;
@@ -118,7 +124,7 @@ impl SearchExecutor {
         });
 
         // Collect results
-        let mut all_matches: Vec<String> = Vec::new();
+        let mut all_matches: Vec<crate::processor::SearchMatch> = Vec::new();
         while let Some(file_results) = rx.recv().await {
             all_matches.extend(file_results);
         }
