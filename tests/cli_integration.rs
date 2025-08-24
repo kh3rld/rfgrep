@@ -27,7 +27,6 @@ fn run_readme_examples() -> Result<(), Box<dyn std::error::Error>> {
 
     let bin = target_debug();
 
-
     // 1: Basic Search
     Command::new(&bin)
         .arg("search")
