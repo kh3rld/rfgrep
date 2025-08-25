@@ -139,7 +139,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -160,7 +160,7 @@ jobs:
     needs: test
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_shell_harness == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies (Xvfb)
         run: |
