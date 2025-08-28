@@ -50,11 +50,18 @@ pub struct Cli {
     #[clap(long, value_parser, default_value_t = false, global = true)]
     pub verbose: bool,
 
+  #[clap(long, value_enum, default_value_t = ColorChoice::Auto, global = true)]
+  pub color: ColorChoice,
+
     #[clap(long, value_parser, global = true)]
     pub log: Option<PathBuf>,
 
     #[clap(long, value_parser, default_value_t = false, global = true)]
     pub dry_run: bool,
+
+  /// Allow running as root (disabled by default for safety)
+  #[clap(long, value_parser, default_value_t = false, global = true)]
+  pub allow_root: bool,
 
     #[clap(long, value_parser, global = true)]
     pub max_size: Option<usize>,
@@ -64,6 +71,13 @@ pub struct Cli {
 
     #[clap(subcommand)]
     pub command: Commands,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Debug)]
+pub enum ColorChoice {
+  Auto,
+  Always,
+  Never,
 }
 
 #[derive(Subcommand, Debug)]
@@ -104,6 +118,10 @@ PERFORMANCE TIPS:
         #[clap(long, value_enum, default_value_t = OutputFormat::Text)]
         output_format: OutputFormat,
 
+  /// Emit newline-delimited JSON (one JSON object per match)
+  #[clap(long, value_parser, default_value_t = false)]
+  ndjson: bool,
+
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
 
@@ -118,6 +136,10 @@ PERFORMANCE TIPS:
 
         #[clap(long, value_parser, default_value_t = false)]
         invert_match: bool,
+
+  /// Per-file timeout in seconds (abort scanning a file after this many seconds)
+  #[clap(long, value_parser)]
+  timeout_per_file: Option<u64>,
 
         #[clap(long, value_parser)]
         max_matches: Option<usize>,
@@ -276,6 +298,11 @@ SETUP:
         #[clap(value_enum)]
         shell: Shell,
     },
+  #[clap(hide = true)]
+  Worker {
+    path: std::path::PathBuf,
+    pattern: String,
+  },
 }
 
 #[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
