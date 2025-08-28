@@ -4,7 +4,7 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, 'release/**']
     tags: ["v*", "v*-*"]  # Support prereleases
   pull_request:
     branches: [main, dev]
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           submodules: recursive
