@@ -6,7 +6,13 @@ use std::{
     process::{Command, Stdio},
 };
 
-use anyhow::{Context, Result}; 
+use std::error::Error;
+use std::fmt;
+
+type BoxError = Box<dyn Error + Send + Sync>;
+
+// Use boxed error for scripts to avoid pulling anyhow
+type Result<T> = std::result::Result<T, BoxError>;
 use chrono::Local; 
 use rand::Rng; 
 
@@ -35,18 +41,13 @@ impl Config {
         let results_dir = project_root.join(RESULTS_BASE_DIR_NAME).join(date_str);
 
         fs::create_dir_all(&results_dir)
-            .with_context(|| format!("Failed to create results directory: {:?}", results_dir))?;
+        .map_err(|e| -> BoxError { Box::new(e) })?;
 
         let rfgrep_dev_full_path = project_root.join(RFGREP_DEV_PATH);
         let rfgrep_exe = if rfgrep_dev_full_path.exists() {
             rfgrep_dev_full_path
         } else {
-            which::which("rfgrep").with_context(|| {
-                format!(
-                    "rfgrep executable not found at '{}' or in PATH. Please build rfgrep (e.g., 'cargo build --release') or ensure it's in your PATH.",
-                    rfgrep_dev_full_path.display()
-                )
-            })?
+            which::which("rfgrep").map_err(|e| -> BoxError { Box::new(e) })?
         };
 
         Ok(Config {
@@ -61,7 +62,7 @@ impl Config {
 fn generate_data(config: &Config) -> Result<()> {
     println!("Generating test data in '{}'...", config.test_dir.display());
     fs::create_dir_all(&config.test_dir)
-        .with_context(|| format!("Failed to create test data directory: '{}'", config.test_dir.display()))?;
+    .map_err(|e| -> BoxError { Box::new(e) })?;
 
     let mut rng = rand::thread_rng();
 
@@ -70,41 +71,41 @@ fn generate_data(config: &Config) -> Result<()> {
         let size = rng.gen_range(1_000..=10_000);
         let file_path = config.test_dir.join(format!("file{}.txt", i));
         let mut file = File::create(&file_path)
-            .with_context(|| format!("Failed to create small file: '{}'", file_path.display()))?;
+            .map_err(|e| -> BoxError { Box::new(e) })?;
         let mut buffer = vec![0u8; size];
         rng.fill(&mut buffer[..]); 
         file.write_all(&buffer)
-            .with_context(|| format!("Failed to write to small file: '{}'", file_path.display()))?;
+            .map_err(|e| -> BoxError { Box::new(e) })?;
     }
 
     let medium_dir = config.test_dir.join("medium");
     fs::create_dir_all(&medium_dir)
-        .with_context(|| format!("Failed to create medium files directory: '{}'", medium_dir.display()))?;
+    .map_err(|e| -> BoxError { Box::new(e) })?;
     println!("Generating 100 medium files (100KB-1MB)...");
     for i in 1..=100 {
         let size = rng.gen_range(100_000..=1_000_000);
         let file_path = medium_dir.join(format!("file{}.dat", i));
         let mut file = File::create(&file_path)
-            .with_context(|| format!("Failed to create medium file: '{}'", file_path.display()))?;
+            .map_err(|e| -> BoxError { Box::new(e) })?;
         let mut buffer = vec![0u8; size];
         rng.fill(&mut buffer[..]);
         file.write_all(&buffer)
-            .with_context(|| format!("Failed to write to medium file: '{}'", file_path.display()))?;
+            .map_err(|e| -> BoxError { Box::new(e) })?;
     }
 
     let large_dir = config.test_dir.join("large");
     fs::create_dir_all(&large_dir)
-        .with_context(|| format!("Failed to create large files directory: '{}'", large_dir.display()))?;
+    .map_err(|e| -> BoxError { Box::new(e) })?;
     println!("Generating 5 large files (10-50MB)...");
     for i in 1..=5 {
         let size = rng.gen_range(10_000_000..=50_000_000);
         let file_path = large_dir.join(format!("file{}.bin", i));
         let mut file = File::create(&file_path)
-            .with_context(|| format!("Failed to create large file: '{}'", file_path.display()))?;
+            .map_err(|e| -> BoxError { Box::new(e) })?;
         let mut buffer = vec![0u8; size];
         rng.fill(&mut buffer[..]);
         file.write_all(&buffer)
-            .with_context(|| format!("Failed to write to large file: '{}'", file_path.display()))?;
+            .map_err(|e| -> BoxError { Box::new(e) })?;
     }
     println!("Test data generation complete.");
     Ok(())
@@ -120,21 +121,12 @@ fn run_external_command(program: &str, args: &[&str], current_dir: Option<&Path>
 
     println!("Executing: {} {}", program, args.join(" "));
 
-    let status = cmd_builder.status().with_context(|| {
-        format!(
-            "Failed to execute command: {} {}",
-            program,
-            args.join(" ")
-        )
-    })?;
-
+    let status = cmd_builder.status().map_err(|e| -> BoxError { Box::new(e) })?;
     if !status.success() {
-        anyhow::bail!(
-            "Command failed with status {}: {} {}",
-            status,
-            program,
-            args.join(" ")
-        );
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Command failed with status {}: {} {}", status, program, args.join(" ")),
+        )));
     }
     Ok(())
 }

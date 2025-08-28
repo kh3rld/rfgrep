@@ -13,26 +13,28 @@ pub struct FileInfo {
 }
 
 pub fn should_list_file(path: &Path, cli: &Cli, extensions: &Option<Vec<String>>) -> bool {
-    if let Some(exts) = extensions {
-        if let Some(file_ext) = path.extension().and_then(|e| e.to_str()) {
-            if !exts.iter().any(|e| e.eq_ignore_ascii_case(file_ext)) {
-                return false;
-            }
-        } else {
+    // Check extensions (if provided) using a single match to avoid nested `if` collapse lints
+    match (extensions, path.extension().and_then(|e| e.to_str())) {
+        (Some(exts), Some(file_ext)) if !exts.iter().any(|e| e.eq_ignore_ascii_case(file_ext)) => {
             return false;
         }
+        (Some(_), None) => {
+            return false;
+        }
+        _ => {}
     }
 
     if cli.skip_binary && processor::is_binary(path) {
         return false;
     }
 
-    if let Some(max_size) = cli.max_size {
-        if let Ok(metadata) = path.metadata() {
-            if metadata.len() > (max_size as u64) * 1024 * 1024 {
-                return false;
-            }
+    // Check max size if configured. Use a match so the intent is explicit and lint-free.
+    match (cli.max_size, path.metadata()) {
+        (Some(max_size), Ok(metadata)) if metadata.len() > (max_size as u64) * 1024 * 1024 => {
+            return false;
         }
+        // Any other case (no max_size set, or metadata error, or size within limit) -> allow
+        _ => {}
     }
 
     true
@@ -52,7 +54,7 @@ pub fn print_simple_list(files: &[FileInfo]) {
 
 pub fn print_long_format(files: &[FileInfo]) {
     let header_separator = "-".repeat(100).dimmed();
-    println!("{}", header_separator);
+    println!("{header_separator}");
     println!(
         "{:<60} {:>15} {:<10} {}",
         "Path".green().bold(),
@@ -60,7 +62,7 @@ pub fn print_long_format(files: &[FileInfo]) {
         "Type".green().bold(),
         "Binary".green().bold()
     );
-    println!("{}", header_separator);
+    println!("{header_separator}");
 
     files.par_iter().for_each(|file| {
         let size_str = format_size(file.size);
@@ -88,46 +90,3 @@ pub fn print_long_format(files: &[FileInfo]) {
         );
     });
 }
-
-// pub fn print_extension_stats(
-//     extension_counts: &std::collections::HashMap<String, usize>,
-//     total_size: u64,
-// ) {
-//     let mut ext_stats: Vec<_> = extension_counts.iter().collect();
-//     ext_stats.par_sort_by(|a, b| b.1.cmp(a.1));
-
-//     let separator = "-".repeat(50).dimmed();
-//     println!("\n{}", separator);
-//     println!("{}", "Summary:".bold());
-
-//     let total_files: usize = extension_counts.values().sum();
-//     println!(
-//         "{}: {}",
-//         "Total files".bold(),
-//         total_files.to_string().replace(",", "_")
-//     );
-//     println!("{}: {}", "Total size".bold(), format_size(total_size));
-
-//     println!("\n{}", separator);
-//     println!("{}:", "Extensions".bold());
-
-//     let max_ext_len = ext_stats
-//         .par_iter()
-//         .map(|(ext, _)| ext.len())
-//         .max()
-//         .unwrap_or(0);
-
-//     ext_stats.par_iter().for_each(|(ext, count)| {
-//         let ext_display = if ext.is_empty() {
-//             "(no extension)"
-//         } else {
-//             ext
-//         };
-//         println!(
-//             "  {:<width$} {:>5} files",
-//             format!(".{}", ext_display).yellow(),
-//             count.to_string().cyan(),
-//             width = max_ext_len + 1
-//         );
-//     });
-// }

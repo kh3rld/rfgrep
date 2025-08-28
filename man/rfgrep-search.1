@@ -1,0 +1,199 @@
+.TH RFGREP-SEARCH 1 "August 2025" "rfgrep v0.2.1" "User Commands"
+
+.SH NAME
+rfgrep-search \- Search for patterns in files with advanced filtering
+
+.SH SYNOPSIS
+.B rfgrep search
+[\fIOPTIONS\fR] \fIPATTERN\fR [\fIMODE\fR]
+
+.SH DESCRIPTION
+The
+.B search
+command searches for patterns in files using various matching modes. It supports regex patterns, plain text matching, and whole-word searches with context lines and highlighting.
+
+.SH ARGUMENTS
+.TP
+.B PATTERN
+The search pattern to find in files
+.TP
+.B MODE
+Search mode (optional, default: text)
+.RS
+.TP
+.B text
+Plain text matching (default)
+.TP
+.B regex
+Regular expression matching
+.TP
+.B word
+Whole word matching with word boundaries
+.RE
+
+.SH OPTIONS
+.TP
+.BR \-r ", " \-\-recursive
+Search recursively in subdirectories
+.TP
+.BR \-\-extensions " " \fIEXTENSIONS\fR
+Comma-separated list of file extensions to search
+.TP
+.BR \-\-copy
+Copy search results to clipboard
+.TP
+.BR \-\-output\-format " " \fIFORMAT\fR
+Output format (text, json, xml, html, markdown)
+.TP
+.BR \-\-context\-lines " " \fINUM\fR
+Number of context lines to show (default: 2)
+.TP
+.BR \-\-case\-sensitive
+Perform case-sensitive search
+.TP
+.BR \-\-invert\-match
+Invert the sense of matching
+.TP
+.BR \-\-max\-matches " " \fINUM\fR
+Maximum number of matches to show per file
+.TP
+.BR \-\-algorithm " " \fIALGORITHM\fR
+Search algorithm (boyer-moore, regex, simple)
+
+.SH SEARCH MODES
+.TP
+.B text
+Plain text matching - searches for exact string matches
+.TP
+.B regex
+Regular expression matching - uses Rust regex syntax
+.TP
+.B word
+Whole word matching - matches complete words only
+
+.SH OUTPUT FORMATS
+.TP
+.B text
+Plain text output with colored highlighting (default)
+.TP
+.B json
+JSON format for programmatic processing
+.TP
+.B xml
+XML format for structured data
+.TP
+.B html
+HTML format for web display
+.TP
+.B markdown
+Markdown format for documentation
+
+.SH SEARCH ALGORITHMS
+.TP
+.B boyer-moore
+Boyer-Moore string search algorithm (fast for plain text)
+.TP
+.B regex
+Regular expression engine (for regex patterns)
+.TP
+.B simple
+Simple linear search (fallback option)
+
+.SH EXAMPLES
+.TP
+Search for "HashMap" in Rust files:
+.B rfgrep search "HashMap" \-\-extensions rs
+.TP
+Search with regex for function definitions:
+.B rfgrep search "fn\\\\s+\\\\w+\\\\s*\\\\(" regex
+.TP
+Search for whole words only:
+.B rfgrep search "test" word \-\-recursive
+.TP
+Search with context and copy to clipboard:
+.B rfgrep search "TODO" \-\-context\-lines 3 \-\-copy
+.TP
+Search with JSON output:
+.B rfgrep search "error" \-\-output\-format json
+.TP
+Case-sensitive search:
+.B rfgrep search "Error" \-\-case\-sensitive
+.TP
+Invert match (find lines NOT containing pattern):
+.B rfgrep search "TODO" \-\-invert\-match
+.TP
+Limit matches per file:
+.B rfgrep search "debug" \-\-max\-matches 5
+
+.SH PERFORMANCE OPTIONS
+.TP
+.BR \-\-skip\-binary
+Skip binary files (improves performance)
+.TP
+.BR \-\-max\-size " " \fISIZE\fR
+Skip files larger than specified MB
+.TP
+.BR \-\-algorithm " " \fIALGORITHM\fR
+Choose optimal algorithm for your pattern type
+
+.SH OUTPUT FORMAT EXAMPLES
+.TP
+Text format (default):
+.RS
+.PP
+File: src/main.rs
+Found 3 match(es) in 2.45ms
+
+→ 15 │ fn main() {
+→ 42 │     let result = process_file();
+→ 67 │     println!("{}", result);
+.RE
+.TP
+JSON format:
+.RS
+.PP
+{
+  "query": "fn",
+  "path": "src/main.rs",
+  "total_matches": 3,
+  "matches": [
+    {
+      "line_number": 15,
+      "line": "fn main() {",
+      "matched_text": "fn",
+      "column_start": 0,
+      "column_end": 2
+    }
+  ]
+}
+.RE
+
+.SH EXIT STATUS
+.TP
+.B 0
+Success, matches found
+.TP
+.B 1
+No matches found
+.TP
+.B 2
+Error occurred during search
+
+.SH NOTES
+.TP
+.B Performance
+Use \-\-skip\-binary for faster searches on large codebases
+.TP
+.B Memory
+Large files are automatically memory-mapped for efficiency
+.TP
+.B Parallelism
+Search is performed in parallel across multiple files
+.TP
+.B Caching
+Compiled regex patterns are cached for repeated searches
+
+.SH SEE ALSO
+.BR rfgrep (1),
+.BR rfgrep-interactive (1),
+.BR grep (1) 

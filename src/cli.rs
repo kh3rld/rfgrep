@@ -1,67 +1,323 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(
+    name = "rfgrep",
+    author = "Khalid Hussein <kh3rld.hussein@gmail.com>",
+    version,
+    about = "Recursive file grep utility with advanced filtering - search, list, and analyze text files with regex support",
+    long_about = r#"
+rfgrep - A powerful command-line utility for recursively searching and listing files with advanced filtering capabilities.
+
+FEATURES:
+  • Advanced Search: Regex, plain text, and whole-word matching
+  • File Listing: Detailed/simple output formats with extension statistics
+  • Performance: Parallel processing with memory mapping for large files
+  • Filtering: Extension, size, and binary file filtering
+  • Utilities: Clipboard copy, dry-run mode, and progress indicators
+
+EXAMPLES:
+  # Search for "HashMap" in Rust files
+  rfgrep search "HashMap" --extensions rs
+
+  # List all Markdown files under 1MB
+  rfgrep list --extensions md --max-size 1
+
+  # Search with regex and copy to clipboard
+  rfgrep search "fn\s+\w+\s*\(" regex --copy
+
+  # Recursive search with word boundaries
+  rfgrep search "test" word --recursive --extensions rs
+
+PERFORMANCE TIPS:
+  • Use --skip-binary to avoid unnecessary file checks
+  • Limit scope with --extensions and --max-size
+  • Use --dry-run first to preview files
+  • Enable --recursive for deep directory traversal
+"#,
+    after_help = r#"
+For more information, visit: https://github.com/kh3rld/rfgrep
+"#
+)]
 pub struct Cli {
     #[clap(default_value = ".")]
     pub path: PathBuf,
 
-    #[clap(long, value_parser, default_value_t = false)]
+    #[clap(long, value_parser, default_value_t = false, global = true)]
     pub verbose: bool,
 
-    #[clap(long, value_parser)]
+    #[clap(long, value_parser, global = true)]
     pub log: Option<PathBuf>,
 
-    #[clap(long, value_parser, default_value_t = false)]
+    #[clap(long, value_parser, default_value_t = false, global = true)]
     pub dry_run: bool,
 
-    #[clap(long, value_parser)]
+    #[clap(long, value_parser, global = true)]
     pub max_size: Option<usize>,
 
-    #[clap(long, value_parser, default_value_t = false)]
+    #[clap(long, value_parser, default_value_t = false, global = true)]
     pub skip_binary: bool,
 
     #[clap(subcommand)]
     pub command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum Commands {
+    #[clap(after_help = r#"
+SEARCH MODES:
+  text    - Plain text search (default)
+  word    - Whole word matching with boundaries
+  regex   - Regular expression search
+
+EXAMPLES:
+  # Basic text search
+  rfgrep search "error" --extensions rs
+
+  # Word boundary search
+  rfgrep search "test" word --recursive
+
+  # Regex search for function definitions
+  rfgrep search "fn\s+\w+\s*\(" regex --extensions rs
+
+  # Search and copy results to clipboard
+  rfgrep search "TODO" --copy --extensions rs,md
+
+PERFORMANCE TIPS:
+  • Use --skip-binary for faster processing
+  • Limit file size with --max-size
+  • Use --dry-run to preview files first
+"#)]
     Search {
         pattern: String,
 
-        #[clap(value_parser, default_value_t = SearchMode::Text)]
+        #[clap(long, value_enum, default_value_t = SearchMode::Text)]
         mode: SearchMode,
 
         #[clap(long, value_parser, default_value_t = false)]
         copy: bool,
 
+        #[clap(long, value_enum, default_value_t = OutputFormat::Text)]
+        output_format: OutputFormat,
+
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
 
         #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
+
+        #[clap(long, value_parser, default_value_t = 0)]
+        context_lines: usize,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        case_sensitive: bool,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        invert_match: bool,
+
+        #[clap(long, value_parser)]
+        max_matches: Option<usize>,
+
+        #[clap(long, value_enum, default_value_t = SearchAlgorithm::BoyerMoore)]
+        algorithm: SearchAlgorithm,
+
+        #[clap(value_parser, last = true)]
+        path: Option<PathBuf>,
+
+        /// Alternative explicit path flag (useful for scripts)
+        #[clap(long, value_parser, alias = "path-flag")]
+        path_flag: Option<PathBuf>,
     },
+
+    #[clap(after_help = r#"
+INTERACTIVE FEATURES:
+  • Real-time search with live filtering
+  • Keyboard navigation and commands
+  • Result highlighting and selection
+  • Save results to file
+  • Memory-optimized processing
+
+COMMANDS:
+  n/new   - Start a new search
+  f/filter - Filter current results
+  c/clear - Clear all filters
+  s/save  - Save results to file
+  q/quit  - Exit interactive mode
+
+EXAMPLES:
+  # Start interactive search
+  rfgrep interactive "error" --extensions rs
+
+  # Interactive search with specific algorithm
+  rfgrep interactive "test" --algorithm boyer-moore --recursive
+"#)]
+    Interactive {
+        pattern: String,
+
+        #[clap(long, value_enum, default_value_t = InteractiveAlgorithm::BoyerMoore)]
+        algorithm: InteractiveAlgorithm,
+
+        #[clap(long, value_parser, use_value_delimiter = true)]
+        extensions: Option<Vec<String>>,
+
+        #[clap(short, long, value_parser, default_value_t = false)]
+        recursive: bool,
+
+        #[clap(value_parser, last = true)]
+        path: Option<PathBuf>,
+
+        /// Alternative explicit path flag (useful for scripts)
+        #[clap(long, value_parser, alias = "path-flag")]
+        path_flag: Option<PathBuf>,
+    },
+    #[clap(after_help = r#"
+OUTPUT FORMATS:
+  Simple  - Just file paths (default)
+  Long    - Detailed table with size, type, and binary info
+
+EXAMPLES:
+  # Simple file listing
+  rfgrep list --extensions rs
+
+  # Detailed listing with size info
+  rfgrep list --long --extensions rs,md
+
+  # Recursive listing with hidden files
+  rfgrep list --recursive --show-hidden --extensions rs
+
+  # List files under 1MB
+  rfgrep list --max-size 1 --extensions rs
+
+FEATURES:
+  • Extension statistics and file counts
+  • Binary file detection
+  • Size filtering and formatting
+  • Hidden file handling
+  • Recursive directory traversal
+"#)]
     List {
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
+
         #[clap(short, long, value_parser, default_value_t = false)]
         long: bool,
+
         #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
+
         #[clap(long, value_parser, default_value_t = false)]
         show_hidden: bool,
+
+        #[clap(long, value_parser)]
+        max_size: Option<usize>,
+
+        #[clap(long, value_parser)]
+        min_size: Option<usize>,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        detailed: bool,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        simple: bool,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        stats: bool,
+
+        #[clap(long, value_enum, default_value_t = SortCriteria::Name)]
+        sort: SortCriteria,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        reverse: bool,
+
+        #[clap(long, value_parser)]
+        limit: Option<usize>,
+
+        #[clap(long, value_parser, default_value_t = false)]
+        copy: bool,
+
+        #[clap(long, value_enum, default_value_t = OutputFormat::Text)]
+        output_format: OutputFormat,
+
+        // Optional trailing path allowing `rfgrep list <options> <path>`
+        #[clap(value_parser, last = true)]
+        path: Option<PathBuf>,
+
+        /// Alternative explicit path flag (useful for scripts)
+        #[clap(long, value_parser, alias = "path-flag")]
+        path_flag: Option<PathBuf>,
+    },
+    #[clap(after_help = r#"
+SUPPORTED SHELLS:
+  bash     - Bash shell completions
+  zsh      - Zsh shell completions
+  fish     - Fish shell completions
+  powershell - PowerShell completions
+  elvish   - Elvish shell completions
+
+EXAMPLES:
+  # Generate bash completions
+  rfgrep completions bash > ~/.local/share/bash-completion/completions/rfgrep
+
+  # Generate zsh completions
+  rfgrep completions zsh > ~/.zsh/completions/_rfgrep
+
+  # Generate fish completions
+  rfgrep completions fish > ~/.config/fish/completions/rfgrep.fish
+
+SETUP:
+  Add the generated completion script to your shell's completion directory
+  and restart your shell or source the completion file.
+"#)]
+    Completions {
+        #[clap(value_enum)]
+        shell: Shell,
     },
 }
 
-#[derive(ValueEnum, Clone, Debug, Default)]
+#[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SearchMode {
     #[default]
     Text,
     Word,
     Regex,
+}
+
+#[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InteractiveAlgorithm {
+    #[default]
+    BoyerMoore,
+    Regex,
+    Simple,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum SearchAlgorithm {
+    BoyerMoore,
+    Regex,
+    Simple,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum SortCriteria {
+    Name,
+    Size,
+    Date,
+    Type,
+    Path,
+}
+
+#[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+    Xml,
+    Html,
+    Markdown,
 }
 
 impl fmt::Display for SearchMode {
