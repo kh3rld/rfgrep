@@ -84,10 +84,10 @@ fn main() -> RfgrepResult<()> {
     match &cli.command {
         Commands::Worker { path, pattern } => {
             // Worker mode: perform a search on a single file and print NDJSON lines to stdout
-            if let Ok(s) = std::env::var("RFGREP_WORKER_SLEEP") {
-                if let Ok(sec) = s.parse::<u64>() {
-                    std::thread::sleep(std::time::Duration::from_secs(sec));
-                }
+            if let Ok(s) = std::env::var("RFGREP_WORKER_SLEEP")
+                && let Ok(sec) = s.parse::<u64>()
+            {
+                std::thread::sleep(std::time::Duration::from_secs(sec));
             }
             let regex = processor::get_or_compile_regex(pattern)?;
             let matches = processor::search_file(path, &regex)?;
@@ -736,14 +736,13 @@ fn process_file(
             Ok(m) => results.push(m),
             Err(_) => {
                 // try to parse as object with matches array
-                if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
-                    if let Some(arr) = v.get("matches").and_then(|a| a.as_array()) {
-                        for it in arr {
-                            if let Ok(m) =
-                                serde_json::from_value::<processor::SearchMatch>(it.clone())
-                            {
-                                results.push(m);
-                            }
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(line)
+                    && let Some(arr) = v.get("matches").and_then(|a| a.as_array())
+                {
+                    for it in arr {
+                        if let Ok(m) = serde_json::from_value::<processor::SearchMatch>(it.clone())
+                        {
+                            results.push(m);
                         }
                     }
                 }
