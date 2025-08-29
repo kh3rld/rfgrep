@@ -4,39 +4,39 @@ name: CI/CD
 
 on:
   push:
-    branches: [main, dev]
-    tags: ["v*", "v*-*"]
+    branches: [main, dev, 'release/**']
+    tags: ["v*", "v*-*"]  # Support prereleases
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * 0"  # Weekly security scans
+    - cron: "0 0 * * 0"  # Weekly security audit
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
+  RUSTFLAGS: "-D warnings -C target-cpu=native"
   CARGO_INCREMENTAL: 0
   RUSTUP_MAX_RETRIES: 3
+  PATH: "${{ github.workspace }}/.cargo/bin:${{ github.env.PATH }}"  
 
 jobs:
-  # Fast feedback jobs first
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          submodules: recursive
 
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          components: clippy, rustfmt
+          components: clippy, rustfmt, llvm-tools-preview
 
-      - name: Cache dependencies
+      - name: Cache cargo registry
         uses: actions/cache@v5
         with:
           path: |
@@ -50,23 +50,24 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Run Clippy
+      - name: Clippy (all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        run: cargo install cargo-audit --locked
 
-      - name: Run security audit
-        run: cargo audit --deny warnings
+      - name: Audit dependencies
+        run: cargo audit --deny-warnings
 
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 15
     strategy:
+      fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, 1.87.0]  # MSRV testing
+        rust: [stable, 1.87.0]  # MSRV
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
@@ -76,16 +77,15 @@ jobs:
             target: x86_64-pc-windows-msvc
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust ${{ matrix.rust }}
+      - name: Install Rust (${{ matrix.rust }})
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
 
-      - name: Cache dependencies
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -99,36 +99,34 @@ jobs:
       - name: Run tests
         run: cargo test --all-features --locked --no-fail-fast
 
-      - name: Run documentation tests
+      - name: Run doctests
         run: cargo test --doc --locked
 
-      - name: Build release binary
+      - name: Build release
         run: cargo build --release --locked --target ${{ matrix.target }}
 
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: test
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
+      - name: Security audit
+        uses: actions-rs/audit-check@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run security audit
-        run: cargo audit --deny warnings
-
-      - name: Scan for secrets
+      - name: Check for secrets
         uses: gitleaks/gitleaks-action@v2
         with:
           config-path: .gitleaks.toml
 
   build-matrix:
-    name: Build Multi-Platform
+    name: Build Artifacts
     runs-on: ${{ matrix.os }}
     needs: [lint, test, security]
     strategy:
@@ -151,8 +149,7 @@ jobs:
             artifact_name: rfgrep-windows-x86_64.exe
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Rust + target
         uses: dtolnay/rust-toolchain@stable
@@ -163,23 +160,22 @@ jobs:
       - name: Build release
         run: cargo build --release --locked --target ${{ matrix.target }}
 
-      - name: Strip debug symbols (Unix)
+      - name: Strip symbols (Unix)
         if: runner.os != 'Windows'
         run: |
           strip target/${{ matrix.target }}/release/rfgrep* || true
 
-      - name: Create checksum
+      - name: Package artifact
         run: |
-          cd target/${{ matrix.target }}/release
-          shasum -a 256 rfgrep* > checksum.txt
+          mkdir -p release
+          cp target/${{ matrix.target }}/release/rfgrep* release/
+          tar czf ${{ matrix.artifact_name }}.tar.gz -C release .
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: |
-            target/${{ matrix.target }}/release/rfgrep*
-            target/${{ matrix.target }}/release/checksum.txt
+          path: ${{ matrix.artifact_name }}.tar.gz
 
   release:
     name: Create Release
@@ -191,8 +187,7 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -201,17 +196,16 @@ jobs:
           pattern: rfgrep-*
           merge-multiple: true
 
-      - name: Create combined checksums
+      - name: Create checksums
         run: |
           cd artifacts
-          find . -name "checksum.txt" -exec cat {} \; > SHA256SUMS
-          rm -f */checksum.txt
+          sha256sum * > SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/**/*
+            artifacts/*
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
@@ -221,39 +215,37 @@ jobs:
   publish-crates-io:
     name: Publish to Crates.io
     runs-on: ubuntu-latest
-    needs: [lint, test, security]
+    needs: test
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Publish to crates.io
+      - name: Publish
         run: |
           cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   docker:
-    name: Build & Push Docker
+    name: Build Docker Image
     runs-on: ubuntu-latest
     needs: build-matrix
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -269,22 +261,14 @@ jobs:
   notify:
     name: Notify Status
     runs-on: ubuntu-latest
-    needs: 
-      - lint
-      - test
-      - security
-      - build-matrix
-      - release
-      - publish-crates-io
-      - docker
+    needs: [release, publish-crates-io, docker]
     if: always()
     steps:
-      - name: Notify on failure
+      - name: Notify Slack
         if: failure()
         uses: 8398a7/action-slack@v3
         with:
           status: ${{ job.status }}
           channel: '#ci'
-          fields: job,message,commit,author,action,eventName,ref,workflow
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
