@@ -711,9 +711,7 @@ fn process_file(
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
             Err(e) => {
-                return Err(RfgrepError::Other(format!(
-                    "Error waiting for child: {e}"
-                )));
+                return Err(RfgrepError::Other(format!("Error waiting for child: {e}")));
             }
         }
     }
