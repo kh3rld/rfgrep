@@ -18,10 +18,11 @@ use colored::*;
 use env_logger::{Builder, Env, Target};
 use indicatif::{ProgressBar, ProgressStyle};
 use list::*;
-use log::{info, warn};
+use log::{debug, info, warn};
 use processor::*;
 use rayon::prelude::*;
 use regex::Regex;
+use rfgrep::metrics::Metrics;
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
@@ -36,6 +37,43 @@ fn main() -> RfgrepResult<()> {
     let start_time = Instant::now();
     info!("Application started with command: {:?}", cli.command);
 
+    // Start Prometheus metrics endpoint on background thread
+    let metrics = std::sync::Arc::new(Metrics::new());
+    {
+        let metrics_clone = metrics.clone();
+        std::thread::spawn(move || {
+            // Minimal hyper server to serve /metrics
+            let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
+            rt.block_on(async move {
+                use hyper::service::{make_service_fn, service_fn};
+                use hyper::{Body, Request, Response, Server};
+
+                let make_svc = make_service_fn(move |_| {
+                    let metrics = metrics_clone.clone();
+                    async move {
+                        Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
+                            let metrics = metrics.clone();
+                            async move {
+                                if req.uri().path() == "/metrics" {
+                                    let body = metrics.gather();
+                                    Ok::<_, hyper::Error>(Response::new(Body::from(body)))
+                                } else {
+                                    Ok::<_, hyper::Error>(Response::new(Body::from("Not Found")))
+                                }
+                            }
+                        }))
+                    }
+                });
+
+                let addr = ([127, 0, 0, 1], 9100).into();
+                let server = Server::bind(&addr).serve(make_svc);
+                if let Err(e) = server.await {
+                    log::error!("Metrics server error: {e}");
+                }
+            });
+        });
+    }
+
     let pb = ProgressBar::new_spinner().with_style(
         ProgressStyle::default_spinner()
             .template("{spinner:.green} [{elapsed_precise}] {msg}")
@@ -44,11 +82,31 @@ fn main() -> RfgrepResult<()> {
     );
 
     match &cli.command {
+        Commands::Worker { path, pattern } => {
+            // Worker mode: perform a search on a single file and print NDJSON lines to stdout
+            if let Ok(s) = std::env::var("RFGREP_WORKER_SLEEP") {
+                if let Ok(sec) = s.parse::<u64>() {
+                    std::thread::sleep(std::time::Duration::from_secs(sec));
+                }
+            }
+            let regex = processor::get_or_compile_regex(pattern)?;
+            let matches = processor::search_file(path, &regex)?;
+            let formatter = crate::output_formats::OutputFormatter::new(
+                crate::output_formats::OutputFormat::Json,
+            )
+            .with_ndjson(true);
+            let out = formatter.format_results(&matches, pattern, path);
+            print!("{out}");
+            return Ok(());
+        }
+
         Commands::Search {
             pattern,
             mode,
             copy,
             output_format,
+            ndjson,
+            timeout_per_file,
             extensions: _,
             recursive,
             context_lines: _,
@@ -58,12 +116,30 @@ fn main() -> RfgrepResult<()> {
             algorithm: _,
             path: cmd_path,
             path_flag: cmd_path_flag,
+            ..
         } => {
             let search_root = cmd_path_flag
                 .as_ref()
                 .map(|p| p.as_path())
                 .or_else(|| cmd_path.as_ref().map(|p| p.as_path()))
                 .unwrap_or(&cli.path);
+
+            // If no explicit path was provided on the command line, default to recursive search
+            // (search entire directory tree). If the user provided a path, respect --recursive flag.
+            let effective_recursive = if cmd_path.is_none() && cmd_path_flag.is_none() {
+                true
+            } else {
+                *recursive
+            };
+
+            // Refuse to run as root unless explicitly allowed
+            #[cfg(unix)]
+            {
+                if unsafe { libc::geteuid() } == 0 && !cli.allow_root {
+                    eprintln!("Refusing to run as root. Use --allow-root to override.");
+                    return Err(RfgrepError::Other("Refused to run as root".to_string()));
+                }
+            }
 
             let regex = if matches!(mode, SearchMode::Regex) {
                 processor::get_or_compile_regex(pattern)?
@@ -73,11 +149,29 @@ fn main() -> RfgrepResult<()> {
             let matches = Mutex::new(Vec::<processor::SearchMatch>::new());
             let processing_errors = Mutex::new(Vec::<RfgrepError>::new()); // Mutex to collect errors
 
+            // If NDJSON streaming requested, create a bounded channel for backpressure
+            let ndjson_mode = *ndjson;
+            let (nd_tx, nd_rx) = if ndjson_mode {
+                let (s, r) = crossbeam_channel::bounded::<processor::SearchMatch>(1024);
+                (Some(s), Some(r))
+            } else {
+                (None, None)
+            };
+
             // Collect all files first
-            let files: Vec<_> = walk_dir(search_root, *recursive, false)
+            // For search, include hidden/ignored files to ensure bundled examples (bench_data) are found
+            let files: Vec<_> = walk_dir(search_root, effective_recursive, true)
                 .filter(|entry| entry.path().is_file())
                 .collect();
 
+            info!("Found {} files to process", files.len());
+            debug!(
+                "Files: {:?}",
+                files
+                    .iter()
+                    .map(|e| e.path().display().to_string())
+                    .collect::<Vec<_>>()
+            );
             pb.set_message(format!("Processing {} files...", files.len()));
 
             // Calculate adaptive chunk size
@@ -85,14 +179,30 @@ fn main() -> RfgrepResult<()> {
             let chunk_size = (files.len() / num_cores).max(1);
 
             // Process files in parallel using rayon with adaptive chunking
+            let shared_metrics = metrics.clone();
             files.par_chunks(chunk_size).for_each(|chunk| {
                 for entry in chunk {
                     let path = entry.path();
-                    match process_file(path, &cli, &regex, &pb) {
+                    match process_file(
+                        path,
+                        &cli,
+                        &regex,
+                        &pb,
+                        *timeout_per_file,
+                        shared_metrics.clone(),
+                    ) {
                         Ok(file_matches) => {
                             if !file_matches.is_empty() {
-                                let mut matches = matches.lock().unwrap();
-                                matches.extend(file_matches);
+                                if let Some(tx) = &nd_tx {
+                                    // Send matches to NDJSON channel (blocking when full) for backpressure
+                                    for m in file_matches {
+                                        // ignore send errors when receiver dropped
+                                        let _ = tx.send(m);
+                                    }
+                                } else {
+                                    let mut matches = matches.lock().unwrap();
+                                    matches.extend(file_matches);
+                                }
                             }
                         }
                         Err(e) => {
@@ -103,6 +213,26 @@ fn main() -> RfgrepResult<()> {
                     }
                 }
             });
+
+            // If NDJSON, drain the channel and print as we go
+            if let Some(rx) = nd_rx {
+                use crate::output_formats::OutputFormatter;
+                let mut formatter = OutputFormatter::new(crate::output_formats::OutputFormat::Json)
+                    .with_ndjson(true);
+                formatter = match cli.color {
+                    cli::ColorChoice::Always => formatter.with_color(true),
+                    cli::ColorChoice::Never => formatter.with_color(false),
+                    cli::ColorChoice::Auto => formatter,
+                };
+
+                // Receive until channel is empty and all producers are done
+                while let Ok(m) = rx.recv() {
+                    // Each received SearchMatch is a complete match; print NDJSON line
+                    // Reuse formatter.format_json on a single-match slice
+                    let line = formatter.format_results(&[m], pattern, &cli.path);
+                    print!("{line}");
+                }
+            }
 
             let mut matches = matches.into_inner().unwrap();
             matches.sort();
@@ -125,21 +255,48 @@ fn main() -> RfgrepResult<()> {
                 );
 
                 // Structured output via OutputFormatter
-                use crate::output_formats::{OutputFormat, OutputFormatter};
+                use crate::output_formats::OutputFormatter;
                 match output_format {
                     cli::OutputFormat::Json => {
-                        let formatter = OutputFormatter::new(OutputFormat::Json);
+                        let mut formatter =
+                            OutputFormatter::new(crate::output_formats::OutputFormat::Json)
+                                .with_ndjson(*ndjson);
+                        // set color based on CLI
+                        formatter = match cli.color {
+                            cli::ColorChoice::Always => formatter.with_color(true),
+                            cli::ColorChoice::Never => formatter.with_color(false),
+                            cli::ColorChoice::Auto => formatter, // default formatter already TTY-aware
+                        };
                         // Use the search root as path metadata
                         let path = std::path::Path::new(&cli.path);
                         let json_out = formatter.format_results(&matches, pattern, path);
                         println!("\n{json_out}");
                     }
                     _ => {
-                        // Fallback to plain text printer
-                        let formatter = OutputFormatter::new(OutputFormat::Text);
-                        let path = std::path::Path::new(&cli.path);
-                        let text_out = formatter.format_results(&matches, pattern, path);
-                        println!("{text_out}");
+                        // Fallback to plain text printer, group matches by file for readability
+                        let mut formatter =
+                            OutputFormatter::new(crate::output_formats::OutputFormat::Text);
+                        formatter = match cli.color {
+                            cli::ColorChoice::Always => formatter.with_color(true),
+                            cli::ColorChoice::Never => formatter.with_color(false),
+                            cli::ColorChoice::Auto => formatter,
+                        };
+
+                        // Group matches by path and print file header once
+                        let mut matches_by_file: std::collections::BTreeMap<_, Vec<_>> =
+                            std::collections::BTreeMap::new();
+                        for m in &matches {
+                            matches_by_file
+                                .entry(m.path.clone())
+                                .or_insert_with(Vec::new)
+                                .push(m.clone());
+                        }
+
+                        for (file_path, file_matches) in matches_by_file {
+                            println!("\n{}", file_path.display());
+                            let out = formatter.format_results(&file_matches, pattern, &file_path);
+                            println!("{out}");
+                        }
                     }
                 }
             }
@@ -434,6 +591,8 @@ fn process_file(
     cli: &Cli,
     regex: &Regex,
     pb: &ProgressBar,
+    timeout_per_file: Option<u64>,
+    metrics: std::sync::Arc<Metrics>,
 ) -> RfgrepResult<Vec<crate::processor::SearchMatch>> {
     // todo: Changed return type to RfgrepResult
     if let Commands::Search {
@@ -473,8 +632,132 @@ fn process_file(
         return Ok(vec![]);
     }
 
-    search_file(path, regex).map_err(|e| RfgrepError::FileProcessing {
-        path: path.to_path_buf(),
-        source: Box::new(e),
-    })
+    // Update metrics
+    metrics.files_scanned.inc();
+
+    // If no timeout requested, do in-process search for simplicity
+    if timeout_per_file.is_none() {
+        let res = crate::processor::search_file(path, regex);
+        if let Ok(ref v) = res {
+            if v.is_empty() {
+                metrics.files_skipped.inc();
+            } else {
+                metrics.matches_found.inc_by(v.len() as u64);
+            }
+        }
+        return res;
+    }
+
+    // Use a process-based worker for per-file scanning to enable hard timeout (kill on timeout)
+    // Build command: <current-exe> worker <path> <regex-as-str>
+    let exe = std::env::current_exe().map_err(RfgrepError::Io)?;
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("worker");
+    cmd.arg(path.as_os_str());
+    // Pass the effective regex pattern string so worker uses the same compiled pattern
+    cmd.arg(regex.as_str());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+
+    // On unix, create a new process group so we can kill the group reliably
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::setpgid(0, 0);
+                Ok(())
+            });
+        }
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| RfgrepError::Other(format!("Spawn worker failed: {e}")))?;
+
+    let dur = timeout_per_file
+        .map(std::time::Duration::from_secs)
+        .unwrap();
+    let start = std::time::Instant::now();
+
+    // Poll wait with small sleep and enforce kill if exceeded
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => break,
+            Ok(None) => {
+                if start.elapsed() > dur {
+                    // timeout: kill child and its process group if possible
+                    #[cfg(unix)]
+                    {
+                        unsafe {
+                            let pid = child.id() as libc::pid_t;
+                            let pgid = libc::getpgid(pid);
+                            if pgid > 0 {
+                                let _ = libc::kill(-pgid, libc::SIGKILL);
+                            } else {
+                                let _ = child.kill();
+                            }
+                        }
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        let _ = child.kill();
+                    }
+                    let _ = child.wait();
+                    metrics.worker_timeouts.inc();
+                    warn!("Timeout scanning file ({}s): {}", dur.as_secs(), file_name);
+                    return Ok(vec![]);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            Err(e) => {
+                return Err(RfgrepError::Other(format!(
+                    "Error waiting for child: {e}"
+                )));
+            }
+        }
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| RfgrepError::Other(format!("Failed to collect child output: {e}")))?;
+
+    // Parse NDJSON output (each line is a match JSON) or a full JSON array
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if !stderr.is_empty() {
+        debug!("Worker stderr for {file_name}: {stderr}");
+    }
+
+    let mut results = Vec::new();
+    for line in stdout.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<processor::SearchMatch>(line) {
+            Ok(m) => results.push(m),
+            Err(_) => {
+                // try to parse as object with matches array
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                    if let Some(arr) = v.get("matches").and_then(|a| a.as_array()) {
+                        for it in arr {
+                            if let Ok(m) =
+                                serde_json::from_value::<processor::SearchMatch>(it.clone())
+                            {
+                                results.push(m);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if results.is_empty() {
+        metrics.files_skipped.inc();
+    } else {
+        metrics.matches_found.inc_by(results.len() as u64);
+    }
+
+    Ok(results)
 }
