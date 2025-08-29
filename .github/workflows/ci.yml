@@ -17,7 +17,6 @@ env:
   RUSTFLAGS: "-D warnings -C target-cpu=native"
   CARGO_INCREMENTAL: 0
   RUSTUP_MAX_RETRIES: 3
-  PATH: "${{ github.workspace }}/.cargo/bin:${{ github.env.PATH }}"  
 
 jobs:
   lint:
