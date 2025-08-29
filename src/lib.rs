@@ -4,6 +4,7 @@ pub mod error;
 mod interactive;
 pub mod list;
 mod memory;
+pub mod metrics;
 mod output_formats;
 pub mod processor;
 mod progress;

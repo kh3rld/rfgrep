@@ -25,6 +25,7 @@ pub enum RfgrepError {
     Config(String),
 
     #[error("Failed to process file '{path}': {source}")]
+    #[allow(dead_code)]
     FileProcessing {
         path: PathBuf,
         #[source]

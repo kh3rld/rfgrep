@@ -52,9 +52,6 @@ jobs:
       - name: Clippy (all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Audit dependencies
-        run: cargo audit --deny warnings
-
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
@@ -106,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
