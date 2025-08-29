@@ -84,13 +84,12 @@ pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
     }
 
     // Skip kernel pseudo-filesystems like /proc and device nodes under /dev by default
-    if let Ok(s) = path.canonicalize() {
-        if let Some(root_str) = s.to_str() {
-            if root_str.starts_with("/proc") || root_str.starts_with("/dev") {
-                debug!("Skipping kernel fs path: {}", path.display());
-                return true;
-            }
-        }
+    if let Ok(s) = path.canonicalize()
+        && let Some(root_str) = s.to_str()
+        && (root_str.starts_with("/proc") || root_str.starts_with("/dev"))
+    {
+        debug!("Skipping kernel fs path: {}", path.display());
+        return true;
     }
 
     // Skip special file types (sockets, pipes, block/char devices)
