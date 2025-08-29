@@ -55,6 +55,9 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
 
+      - name: Ensure cargo bin in PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Audit dependencies
         run: cargo audit --deny warnings
 
