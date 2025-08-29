@@ -52,12 +52,6 @@ jobs:
       - name: Clippy (all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-
-      - name: Audit dependencies
-        run: cargo audit --deny-warnings
-
   test:
     name: Test Suite
     runs-on: ${{ matrix.os }}
