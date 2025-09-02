@@ -24,16 +24,19 @@ fn get_adaptive_mmap_threshold() -> u64 {
     #[cfg(unix)]
     {
         use std::fs;
-        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo")
-            && let Some(available_line) = meminfo
+        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
+            if let Some(available_line) = meminfo
                 .lines()
                 .find(|line| line.starts_with("MemAvailable:"))
-            && let Some(kb_str) = available_line.split_whitespace().nth(1)
-            && let Ok(kb) = kb_str.parse::<u64>()
-        {
-            // Use 1/8 of available memory, but cap at 1GB
-            let threshold = (kb * 1024 / 8).min(1024 * 1024 * 1024);
-            return threshold.max(MMAP_THRESHOLD);
+            {
+                if let Some(kb_str) = available_line.split_whitespace().nth(1) {
+                    if let Ok(kb) = kb_str.parse::<u64>() {
+                        // Use 1/8 of available memory, but cap at 1GB
+                        let threshold = (kb * 1024 / 8).min(1024 * 1024 * 1024);
+                        return threshold.max(MMAP_THRESHOLD);
+                    }
+                }
+            }
         }
     }
 
@@ -60,15 +63,15 @@ lazy_static! {
 }
 
 pub fn is_binary(file: &Path) -> bool {
-    if let Ok(Some(k)) = infer::get_from_path(file)
-        && !k.mime_type().starts_with("text/")
-    {
-        debug!(
-            "Infer detected binary for {}: {}",
-            file.display(),
-            k.mime_type()
-        );
-        return true;
+    if let Ok(Some(k)) = infer::get_from_path(file) {
+        if !k.mime_type().starts_with("text/") {
+            debug!(
+                "Infer detected binary for {}: {}",
+                file.display(),
+                k.mime_type()
+            );
+            return true;
+        }
     }
 
     if let Ok(mut f) = File::open(file) {
@@ -103,12 +106,13 @@ pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
     }
 
     // Skip kernel pseudo-filesystems like /proc and device nodes under /dev by default
-    if let Ok(s) = path.canonicalize()
-        && let Some(root_str) = s.to_str()
-        && (root_str.starts_with("/proc") || root_str.starts_with("/dev"))
-    {
-        debug!("Skipping kernel fs path: {}", path.display());
-        return true;
+    if let Ok(s) = path.canonicalize() {
+        if let Some(root_str) = s.to_str() {
+            if root_str.starts_with("/proc") || root_str.starts_with("/dev") {
+                debug!("Skipping kernel fs path: {}", path.display());
+                return true;
+            }
+        }
     }
 
     // Skip special file types (sockets, pipes, block/char devices)
