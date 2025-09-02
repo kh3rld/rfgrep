@@ -2,6 +2,7 @@
 //! File-level search helpers and match extraction used by the rfgrep core.
 use crate::error::{Result as RfgrepResult, RfgrepError};
 // infer is used via `infer::get_from_path` when needed; no top-level import required here
+use dashmap::DashMap;
 use lazy_static::lazy_static;
 use log::{debug, info, warn};
 use memmap2::Mmap;
@@ -12,7 +13,6 @@ use std::fs::Metadata;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::time::Instant;
-use dashmap::DashMap;
 
 const CONTEXT_LINES: usize = 2;
 const BINARY_CHECK_SIZE: usize = 8000;
@@ -25,7 +25,10 @@ fn get_adaptive_mmap_threshold() -> u64 {
     {
         use std::fs;
         if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
-            if let Some(available_line) = meminfo.lines().find(|line| line.starts_with("MemAvailable:")) {
+            if let Some(available_line) = meminfo
+                .lines()
+                .find(|line| line.starts_with("MemAvailable:"))
+            {
                 if let Some(kb_str) = available_line.split_whitespace().nth(1) {
                     if let Ok(kb) = kb_str.parse::<u64>() {
                         // Use 1/8 of available memory, but cap at 1GB
@@ -36,7 +39,7 @@ fn get_adaptive_mmap_threshold() -> u64 {
             }
         }
     }
-    
+
     // Fallback to default threshold
     MMAP_THRESHOLD
 }
@@ -248,7 +251,9 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<SearchMatch
                 match std::str::from_utf8(&mmap) {
                     Ok(content) => find_matches_with_context(content.to_string(), pattern, path)?,
                     Err(e) => {
-                        warn!("Invalid UTF-8 in file {file_display}, falling back to streaming: {e}");
+                        warn!(
+                            "Invalid UTF-8 in file {file_display}, falling back to streaming: {e}"
+                        );
                         let reader = BufReader::new(file);
                         find_matches_streaming(reader, pattern, path)?
                     }

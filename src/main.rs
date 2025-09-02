@@ -44,7 +44,8 @@ fn main() -> RfgrepResult<()> {
         ctrlc::set_handler(move || {
             shutdown_flag.store(true, AtomicOrdering::SeqCst);
             eprintln!("\nShutdown requested, finishing current operations...");
-        }).expect("Failed to set Ctrl-C handler");
+        })
+        .expect("Failed to set Ctrl-C handler");
     }
     let cli = Cli::parse();
     setup_logging(&cli)?;
@@ -201,7 +202,7 @@ fn main() -> RfgrepResult<()> {
                     if SHUTDOWN_REQUESTED.load(AtomicOrdering::SeqCst) {
                         return;
                     }
-                    
+
                     let path = entry.path();
                     match process_file(
                         path,

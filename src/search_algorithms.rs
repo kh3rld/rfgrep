@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use memchr::memmem;
+use std::collections::HashMap;
 
 /// SIMD-optimized string search using memchr
 pub struct SimdSearch {
@@ -29,7 +29,7 @@ impl SimdSearch {
             let absolute_pos = pos + found_pos;
             matches.push(absolute_pos);
             pos = absolute_pos + 1;
-            
+
             if pos >= text_bytes.len() {
                 break;
             }
@@ -254,7 +254,7 @@ pub struct SearchMatch {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum SearchAlgorithm {
-    Simd,      // New SIMD-optimized search
+    Simd, // New SIMD-optimized search
     BoyerMoore,
     Regex,
     Simple,
@@ -340,16 +340,16 @@ impl SimpleSearch {
     pub fn search(&self, text: &str) -> Vec<usize> {
         let mut matches = Vec::new();
         let mut pos = 0;
-        
+
         while let Some(found_pos) = text[pos..].find(&self.pattern) {
             matches.push(pos + found_pos);
             pos += found_pos + 1;
-            
+
             if pos >= text.len() {
                 break;
             }
         }
-        
+
         matches
     }
 
@@ -412,10 +412,7 @@ impl RegexSearch {
     }
 
     pub fn search(&self, text: &str) -> Vec<usize> {
-        self.regex
-            .find_iter(text)
-            .map(|m| m.start())
-            .collect()
+        self.regex.find_iter(text).map(|m| m.start()).collect()
     }
 
     pub fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
@@ -433,7 +430,8 @@ impl RegexSearch {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
-                let matched_text = self.regex
+                let matched_text = self
+                    .regex
                     .find(&text[match_pos..])
                     .map(|m| m.as_str().to_string())
                     .unwrap_or_default();

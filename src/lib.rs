@@ -17,7 +17,10 @@ pub use clap::Parser;
 pub use cli::{Cli, Commands, SearchMode};
 pub use list::{FileInfo, print_long_format, print_simple_list, should_list_file};
 pub use processor::{is_binary, search_file};
-pub use search_algorithms::{SearchMatch, SearchAlgorithm, SearchAlgorithmFactory, SimdSearch, BoyerMoore, SimpleSearch, RegexSearch};
+pub use search_algorithms::{
+    BoyerMoore, RegexSearch, SearchAlgorithm, SearchAlgorithmFactory, SearchMatch, SimdSearch,
+    SimpleSearch,
+};
 use std::path::Path;
 pub use std::path::PathBuf;
 pub use walker::walk_dir;
