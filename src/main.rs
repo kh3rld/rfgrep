@@ -30,7 +30,22 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 use walker::walk_dir;
 
+#[cfg(unix)]
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+
+#[cfg(unix)]
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+
 fn main() -> RfgrepResult<()> {
+    #[cfg(unix)]
+    {
+        // Set up signal handlers for graceful shutdown
+        let shutdown_flag = &SHUTDOWN_REQUESTED;
+        ctrlc::set_handler(move || {
+            shutdown_flag.store(true, AtomicOrdering::SeqCst);
+            eprintln!("\nShutdown requested, finishing current operations...");
+        }).expect("Failed to set Ctrl-C handler");
+    }
     let cli = Cli::parse();
     setup_logging(&cli)?;
 
@@ -182,6 +197,11 @@ fn main() -> RfgrepResult<()> {
             let shared_metrics = metrics.clone();
             files.par_chunks(chunk_size).for_each(|chunk| {
                 for entry in chunk {
+                    #[cfg(unix)]
+                    if SHUTDOWN_REQUESTED.load(AtomicOrdering::SeqCst) {
+                        return;
+                    }
+                    
                     let path = entry.path();
                     match process_file(
                         path,

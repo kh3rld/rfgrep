@@ -4,7 +4,6 @@ use crate::error::{Result as RfgrepResult, RfgrepError};
 // infer is used via `infer::get_from_path` when needed; no top-level import required here
 use lazy_static::lazy_static;
 use log::{debug, info, warn};
-use lru::LruCache;
 use memmap2::Mmap;
 use regex::Regex;
 use std::collections::VecDeque;
@@ -12,14 +11,35 @@ use std::fs::File;
 use std::fs::Metadata;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
-use std::sync::Mutex;
 use std::time::Instant;
+use dashmap::DashMap;
 
 const CONTEXT_LINES: usize = 2;
 const BINARY_CHECK_SIZE: usize = 8000;
 const MMAP_THRESHOLD: u64 = 16 * 1024 * 1024;
-const REGEX_CACHE_SIZE: usize = 100;
 const MAX_SCAN_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
+
+/// Get adaptive mmap threshold based on available system memory
+fn get_adaptive_mmap_threshold() -> u64 {
+    #[cfg(unix)]
+    {
+        use std::fs;
+        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
+            if let Some(available_line) = meminfo.lines().find(|line| line.starts_with("MemAvailable:")) {
+                if let Some(kb_str) = available_line.split_whitespace().nth(1) {
+                    if let Ok(kb) = kb_str.parse::<u64>() {
+                        // Use 1/8 of available memory, but cap at 1GB
+                        let threshold = (kb * 1024 / 8).min(1024 * 1024 * 1024);
+                        return threshold.max(MMAP_THRESHOLD);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Fallback to default threshold
+    MMAP_THRESHOLD
+}
 
 use serde::{Deserialize, Serialize};
 
@@ -36,8 +56,7 @@ pub struct SearchMatch {
 }
 
 lazy_static! {
-    static ref REGEX_CACHE: Mutex<LruCache<String, Regex>> =
-        Mutex::new(LruCache::new(REGEX_CACHE_SIZE.try_into().unwrap()));
+    static ref REGEX_CACHE: DashMap<String, Regex> = DashMap::new();
 }
 
 pub fn is_binary(file: &Path) -> bool {
@@ -191,14 +210,13 @@ fn is_binary_content(data: &[u8]) -> bool {
 }
 
 pub fn get_or_compile_regex(pattern: &str) -> RfgrepResult<Regex> {
-    let mut cache = REGEX_CACHE.lock().unwrap();
-    if let Some(regex) = cache.get(pattern) {
+    if let Some(regex) = REGEX_CACHE.get(pattern) {
         debug!("Regex cache hit for pattern: {pattern}");
         Ok(regex.clone())
     } else {
         debug!("Regex cache miss for pattern: {pattern}. Compiling.");
         let regex = Regex::new(pattern).map_err(RfgrepError::Regex)?;
-        cache.put(pattern.to_string(), regex.clone());
+        REGEX_CACHE.insert(pattern.to_string(), regex.clone());
         Ok(regex)
     }
 }
@@ -217,7 +235,7 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<SearchMatch
         return Ok(vec![]);
     }
 
-    let matches_found = if file_size >= MMAP_THRESHOLD {
+    let matches_found = if file_size >= get_adaptive_mmap_threshold() {
         debug!("Attempting memory mapping for file: {file_display} ({file_size} bytes)");
         match unsafe { Mmap::map(&file) } {
             Ok(mmap) => {
@@ -226,8 +244,15 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<SearchMatch
                     info!("Skipping binary file (mmap): {file_display}");
                     return Ok(vec![]);
                 }
-                let content = unsafe { std::str::from_utf8_unchecked(&mmap) };
-                find_matches_with_context(content.to_string(), pattern, path)?
+                // SAFETY: Validate UTF-8 before conversion
+                match std::str::from_utf8(&mmap) {
+                    Ok(content) => find_matches_with_context(content.to_string(), pattern, path)?,
+                    Err(e) => {
+                        warn!("Invalid UTF-8 in file {file_display}, falling back to streaming: {e}");
+                        let reader = BufReader::new(file);
+                        find_matches_streaming(reader, pattern, path)?
+                    }
+                }
             }
             Err(_) => {
                 warn!("Failed to memory map, falling back to streaming: {file_display}");

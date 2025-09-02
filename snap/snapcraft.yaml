@@ -1,0 +1,22 @@
+name: rfgrep
+base: core22
+version: '0.2.1'
+summary: Recursive file grep utility
+description: |
+  rfgrep - Recursive file grep utility optimized for safety and production usage.
+
+grade: stable
+confinement: strict
+
+parts:
+  rfgrep:
+    plugin: rust
+    source: ..
+    build-packages:
+      - pkg-config
+    rust-channel: stable
+
+apps:
+  rfgrep:
+    command: bin/rfgrep
+    plugs: [network, home]

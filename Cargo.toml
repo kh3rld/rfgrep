@@ -67,6 +67,9 @@ ignore = "0.4.23"
 crossbeam-channel = "0.5"
 nix = { version = "0.30", optional = false }
 libc = "0.2"
+ctrlc = "3.4"
+memchr = "2.7"
+dashmap = "5.5"
 
 # Development dependencies
 [dev-dependencies]
