@@ -24,19 +24,16 @@ fn get_adaptive_mmap_threshold() -> u64 {
     #[cfg(unix)]
     {
         use std::fs;
-        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
-            if let Some(available_line) = meminfo
+        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo")
+            && let Some(available_line) = meminfo
                 .lines()
                 .find(|line| line.starts_with("MemAvailable:"))
-            {
-                if let Some(kb_str) = available_line.split_whitespace().nth(1) {
-                    if let Ok(kb) = kb_str.parse::<u64>() {
-                        // Use 1/8 of available memory, but cap at 1GB
-                        let threshold = (kb * 1024 / 8).min(1024 * 1024 * 1024);
-                        return threshold.max(MMAP_THRESHOLD);
-                    }
-                }
-            }
+            && let Some(kb_str) = available_line.split_whitespace().nth(1)
+            && let Ok(kb) = kb_str.parse::<u64>()
+        {
+            // Use 1/8 of available memory, but cap at 1GB
+            let threshold = (kb * 1024 / 8).min(1024 * 1024 * 1024);
+            return threshold.max(MMAP_THRESHOLD);
         }
     }
 
