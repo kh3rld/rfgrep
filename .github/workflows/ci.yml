@@ -114,9 +114,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         with:
-          config-path: .gitleaks.toml
+          args: --redact --no-git --source .
 
   build-matrix:
     name: Build Artifacts
