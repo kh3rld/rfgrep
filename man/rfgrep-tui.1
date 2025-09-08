@@ -1,0 +1,370 @@
+.TH RFGREP-TUI 1 "August 2025" "rfgrep v0.2.1" "User Commands"
+
+.SH NAME
+rfgrep-tui \- Interactive Terminal User Interface with modern TUI
+
+.SH SYNOPSIS
+.B rfgrep tui
+[\fIOPTIONS\fR] [\fIPATTERN\fR]
+
+.SH DESCRIPTION
+The
+.B tui
+command launches an interactive Terminal User Interface (TUI) for searching files. It provides a modern, responsive interface with real-time search, navigation, and configuration options. The TUI is built using ratatui and provides a rich user experience with keyboard shortcuts and visual feedback.
+
+.SH ARGUMENTS
+.TP
+.B PATTERN
+Optional initial search pattern (if not provided, you can enter it interactively)
+
+.SH OPTIONS
+.TP
+.BR \-\-algorithm " " \fIALGORITHM\fR
+Search algorithm to use (boyer-moore, regex, simple, simd)
+.TP
+.BR \-\-case\-sensitive
+Enable case-sensitive search
+.TP
+.BR \-\-mode " " \fIMODE\fR
+Search mode (text, word, regex)
+.TP
+.BR \-\-context\-lines " " \fINUM\fR
+Number of context lines to show around matches
+.TP
+.BR \-\-path " " \fIPATH\fR
+Search path (default: current directory)
+
+.SH TUI FEATURES
+.TP
+.B Real-time Search
+Search results update as you type
+.TP
+.B Interactive Navigation
+Navigate through files and matches with keyboard shortcuts
+.TP
+.B Visual Feedback
+Color-coded results with syntax highlighting
+.TP
+.B Configuration Panel
+Change search settings without restarting
+.TP
+.B Help System
+Built-in help with keyboard shortcuts
+.TP
+.B Status Information
+Real-time statistics and progress indicators
+.TP
+.B Multiple Panels
+Separate panels for files, matches, and details
+.TP
+.B Responsive Layout
+Adapts to different terminal sizes
+
+.SH KEYBOARD SHORTCUTS
+.TP
+.B Navigation
+.RS
+.TP
+.B ↑/↓, j/k
+Navigate through matches
+.TP
+.B ←/→, h/l
+Navigate through files
+.TP
+.B Page Up/Down
+Scroll through results
+.TP
+.B Home/End
+Go to first/last result
+.TP
+.B Ctrl+U/D
+Scroll up/down by half page
+.RE
+.TP
+.B Search
+.RS
+.TP
+.B n/N
+Next/Previous match
+.TP
+.B r
+Refresh search with current pattern
+.TP
+.B /
+Search within current results
+.TP
+.B Enter
+Start new search
+.RE
+.TP
+.B Configuration
+.RS
+.TP
+.B c
+Toggle case sensitivity
+.TP
+.B m
+Cycle through search modes (text/word/regex)
+.TP
+.B a
+Cycle through algorithms
+.TP
+.B +
+Increase context lines
+.TP
+.B -
+Decrease context lines
+.RE
+.TP
+.B Actions
+.RS
+.TP
+.B Enter
+Open current file in editor
+.TP
+.B Space
+Toggle selection of current match
+.TP
+.B s
+Save current results to file
+.TP
+.B f
+Filter results by file extension
+.TP
+.B Ctrl+A
+Select all matches
+.TP
+.B Ctrl+D
+Deselect all matches
+.RE
+.TP
+.B Interface
+.RS
+.TP
+.B h
+Toggle help panel
+.TP
+.B q
+Quit TUI
+.TP
+.B Tab
+Switch between panels
+.TP
+.B Esc
+Cancel current operation
+.RE
+
+.SH TUI LAYOUT
+.TP
+.B Header Panel
+Shows current search pattern, algorithm, and status
+.TP
+.B File List Panel
+Lists files with match counts and file information
+.TP
+.B Match Details Panel
+Shows detailed match information with context
+.TP
+.B Help Panel
+Displays keyboard shortcuts and commands
+.TP
+.B Status Bar
+Shows current settings and statistics
+
+.SH SEARCH MODES
+.TP
+.B text
+Plain text matching (default)
+.TP
+.B word
+Whole word matching with word boundaries
+.TP
+.B regex
+Regular expression matching
+
+.SH SEARCH ALGORITHMS
+.TP
+.B boyer-moore
+Boyer-Moore string search algorithm (fast for plain text)
+.TP
+.B regex
+Regular expression engine (for regex patterns)
+.TP
+.B simple
+Simple linear search (fallback option)
+.TP
+.B simd
+SIMD-optimized search for maximum performance
+
+.SH EXAMPLES
+.TP
+Start TUI with a pattern:
+.B rfgrep tui "error"
+.TP
+Start TUI and enter pattern interactively:
+.B rfgrep tui
+.TP
+Start TUI with specific algorithm:
+.B rfgrep tui "pattern" \-\-algorithm simd
+.TP
+Start TUI with case-sensitive search:
+.B rfgrep tui "Error" \-\-case\-sensitive
+.TP
+Start TUI with regex mode:
+.B rfgrep tui "fn\s+\w+" \-\-mode regex
+.TP
+Start TUI with context lines:
+.B rfgrep tui "TODO" \-\-context\-lines 3
+.TP
+Start TUI in specific directory:
+.B rfgrep tui "test" \-\-path src/
+
+.SH INTERACTIVE SESSION EXAMPLE
+.RS
+.PP
+Starting TUI mode...
+Pattern: error
+Algorithm: BoyerMoore
+Mode: text
+Context: 2 lines
+Files to search: 156
+
+┌─ Search Results ─────────────────────────────────────────┐
+│ File: src/main.rs (3 matches)                           │
+│ → 15 │ fn main() {                                      │
+│ → 42 │     let result = process_file();                 │
+│ → 67 │     println!("{}", result);                     │
+│                                                         │
+│ File: src/processor.rs (1 match)                        │
+│ → 23 │     if let Err(e) = process() {                  │
+│                                                         │
+│ [h] Help  [q] Quit  [n] Next  [r] Refresh  [c] Case    │
+└─────────────────────────────────────────────────────────┘
+.RE
+
+.SH PERFORMANCE FEATURES
+.TP
+.B Adaptive Memory Management
+Automatically adjusts memory usage based on system resources
+.TP
+.B Caching
+Caches search results and compiled patterns for faster navigation
+.TP
+.B Parallel Processing
+Searches multiple files simultaneously
+.TP
+.B Memory Mapping
+Efficiently handles large files without loading them entirely
+.TP
+.B Streaming Search
+Uses streaming for large files to minimize memory usage
+.TP
+.B Plugin Integration
+Supports plugin-based search algorithms
+
+.SH CONFIGURATION
+.TP
+.B Search Settings
+Algorithm, mode, case sensitivity, context lines
+.TP
+.B Display Settings
+Color scheme, layout, panel sizes
+.TP
+.B Performance Settings
+Chunk size, buffer size, parallel workers
+.TP
+.B Plugin Settings
+Enable/disable plugins, set priorities
+
+.SH OUTPUT FORMATS
+.TP
+.B Text
+Plain text with syntax highlighting
+.TP
+.B JSON
+Structured data for programmatic use
+.TP
+.B Markdown
+Formatted for documentation
+.TP
+.B CSV
+Comma-separated values for spreadsheet import
+
+.SH EXIT STATUS
+.TP
+.B 0
+Success, TUI session completed normally
+.TP
+.B 1
+Error occurred during TUI session
+.TP
+.B 2
+User interrupted (Ctrl+C)
+.TP
+.B 3
+Terminal not supported
+
+.SH NOTES
+.TP
+.B Terminal Support
+Requires a terminal that supports ANSI escape sequences
+.TP
+.B Performance
+TUI is optimized for responsiveness and smooth navigation
+.TP
+.B Memory
+Uses adaptive memory management for large datasets
+.TP
+.B Caching
+Search results are cached for faster navigation
+.TP
+.B Keyboard
+Full keyboard navigation support with customizable shortcuts
+
+.SH TROUBLESHOOTING
+.TP
+.B Slow Performance
+Use \-\-skip\-binary and limit file extensions
+.TP
+.B Memory Issues
+Reduce search scope or use \-\-max\-size
+.TP
+.B Navigation Problems
+Check terminal supports arrow keys and Enter
+.TP
+.B Display Issues
+Ensure terminal supports colors and UTF-8
+.TP
+.B Plugin Errors
+Check plugin configuration and dependencies
+
+.SH ENVIRONMENT
+.TP
+.B RFGREP_TUI_CONFIG
+Path to TUI configuration file
+.TP
+.B RFGREP_TUI_THEME
+Color theme for TUI interface
+.TP
+.B RFGREP_TUI_EDITOR
+Default editor for opening files
+
+.SH FILES
+.TP
+.B ~/.config/rfgrep/tui.toml
+TUI configuration file
+.TP
+.B ~/.cache/rfgrep/tui/
+TUI cache directory
+
+.SH SEE ALSO
+.BR rfgrep (1),
+.BR rfgrep-search (1),
+.BR rfgrep-interactive (1),
+.BR less (1)
+
+.SH AUTHOR
+Written by the rfgrep development team.
+
+.SH COPYRIGHT
+Copyright © 2025 rfgrep contributors. License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

@@ -298,9 +298,133 @@ SETUP:
         #[clap(value_enum)]
         shell: Shell,
     },
+    #[clap(after_help = r#"
+PLUGIN MANAGEMENT:
+  list     - List all available plugins
+  stats    - Show plugin statistics
+  info     - Show detailed plugin information
+  enable   - Enable a plugin
+  disable  - Disable a plugin
+  priority - Set plugin priority
+  config   - Show plugin configuration options
+  test     - Test plugin with specific file
+
+EXAMPLES:
+  # List all plugins
+  rfgrep plugins list
+
+  # Show plugin statistics
+  rfgrep plugins stats
+
+  # Get info about text plugin
+  rfgrep plugins info enhanced_text
+
+  # Enable binary plugin
+  rfgrep plugins enable enhanced_binary
+
+  # Test text plugin on a file
+  rfgrep plugins test enhanced_text README.md "example"
+"#)]
+    Plugins {
+        #[clap(subcommand)]
+        command: PluginCommands,
+    },
+    /// Interactive TUI mode
+    #[clap(after_help = r#"
+INTERACTIVE TUI MODE:
+  Launch an interactive terminal user interface for searching files.
+
+EXAMPLES:
+  # Start TUI with a pattern
+  rfgrep tui "search pattern"
+
+  # Start TUI and enter pattern interactively
+  rfgrep tui
+
+  # Start TUI with specific algorithm
+  rfgrep tui "pattern" --algorithm boyer-moore
+
+  # Start TUI with case-sensitive search
+  rfgrep tui "pattern" --case-sensitive
+
+CONTROLS:
+  h         - Toggle help
+  q         - Quit
+  ↑/↓, j/k  - Navigate matches
+  ←/→, h/l  - Navigate files
+  n/N       - Next/Previous match
+  c         - Toggle case sensitivity
+  m         - Cycle search mode
+  a         - Cycle algorithm
+  r         - Refresh search
+  Enter     - Open file in editor
+"#)]
+    Tui {
+        /// Search pattern
+        pattern: Option<String>,
+        /// Search algorithm to use
+        #[clap(long, value_enum, default_value = "boyer-moore")]
+        algorithm: SearchAlgorithm,
+        /// Enable case-sensitive search
+        #[clap(long)]
+        case_sensitive: bool,
+        /// Search mode
+        #[clap(long, value_enum, default_value = "text")]
+        mode: SearchMode,
+        /// Number of context lines to show
+        #[clap(long, default_value = "0")]
+        context_lines: usize,
+        /// Search path
+        #[clap(long, default_value = ".")]
+        path: String,
+    },
     #[clap(hide = true)]
     Worker {
         path: std::path::PathBuf,
+        pattern: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum PluginCommands {
+    /// List all available plugins
+    List,
+    /// Show plugin statistics
+    Stats,
+    /// Show detailed plugin information
+    Info {
+        /// Plugin name
+        name: String,
+    },
+    /// Enable a plugin
+    Enable {
+        /// Plugin name
+        name: String,
+    },
+    /// Disable a plugin
+    Disable {
+        /// Plugin name
+        name: String,
+    },
+    /// Set plugin priority
+    Priority {
+        /// Plugin name
+        name: String,
+        /// Priority value (lower = higher priority)
+        priority: u32,
+    },
+    /// Show plugin configuration options
+    Config {
+        /// Plugin name
+        name: String,
+    },
+    /// Test plugin with specific file
+    Test {
+        /// Plugin name
+        name: String,
+        /// File path to test
+        file: String,
+        /// Search pattern
         pattern: String,
     },
 }

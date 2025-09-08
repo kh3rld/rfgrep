@@ -5,7 +5,7 @@ PREFIX ?= /usr/local
 MANDIR ?= $(PREFIX)/share/man
 MAN1DIR = $(MANDIR)/man1
 
-MANPAGES = rfgrep.1 rfgrep-search.1 rfgrep-interactive.1 rfgrep-list.1 rfgrep-completions.1
+MANPAGES = rfgrep.1 rfgrep-search.1 rfgrep-interactive.1 rfgrep-list.1 rfgrep-completions.1 rfgrep-plugins.1 rfgrep-tui.1
 
 .PHONY: all install uninstall clean check gzip
 

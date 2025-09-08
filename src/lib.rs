@@ -1,22 +1,44 @@
+#![allow(clippy::uninlined_format_args)]
+#![allow(dead_code)]
+#![allow(clippy::op_ref)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::borrowed_box)]
+#![allow(clippy::unnecessary_map_or)]
+#![allow(clippy::new_without_default)]
+#![allow(unused_assignments)]
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::needless_borrows_for_generic_args)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::print_literal)]
+pub mod app_simple;
 pub mod cli;
 mod config;
 pub mod error;
 mod interactive;
 pub mod list;
 mod memory;
+pub mod metrics;
 mod output_formats;
+pub mod plugin_cli;
+pub mod plugin_system;
 pub mod processor;
 mod progress;
 mod search;
-mod search_algorithms;
+pub mod search_algorithms;
+pub mod streaming_search;
+pub mod tui;
 pub mod walker;
 use crate::config::Config;
 pub use crate::error::Result;
 pub use clap::Parser;
 pub use cli::{Cli, Commands, SearchMode};
-pub use list::{FileInfo, print_long_format, print_simple_list, should_list_file};
+pub use list::FileInfo;
 pub use processor::{is_binary, search_file};
-pub use search_algorithms::SearchMatch;
+pub use search_algorithms::{
+    BoyerMoore, RegexSearch, SearchAlgorithm, SearchAlgorithmFactory, SearchMatch, SimdSearch,
+    SimpleSearch,
+};
 use std::path::Path;
 pub use std::path::PathBuf;
 pub use walker::walk_dir;

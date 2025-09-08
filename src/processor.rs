@@ -2,24 +2,51 @@
 //! File-level search helpers and match extraction used by the rfgrep core.
 use crate::error::{Result as RfgrepResult, RfgrepError};
 // infer is used via `infer::get_from_path` when needed; no top-level import required here
+use dashmap::DashMap;
 use lazy_static::lazy_static;
 use log::{debug, info, warn};
-use lru::LruCache;
 use memmap2::Mmap;
 use regex::Regex;
 use std::collections::VecDeque;
 use std::fs::File;
+use std::fs::Metadata;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
-use std::sync::Mutex;
 use std::time::Instant;
 
 const CONTEXT_LINES: usize = 2;
 const BINARY_CHECK_SIZE: usize = 8000;
 const MMAP_THRESHOLD: u64 = 16 * 1024 * 1024;
-const REGEX_CACHE_SIZE: usize = 100;
+const MAX_SCAN_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+/// Get adaptive mmap threshold based on available system memory
+fn get_adaptive_mmap_threshold() -> u64 {
+    #[cfg(unix)]
+    {
+        use std::fs;
+        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
+            if let Some(available_line) = meminfo
+                .lines()
+                .find(|line| line.starts_with("MemAvailable:"))
+            {
+                if let Some(kb_str) = available_line.split_whitespace().nth(1) {
+                    if let Ok(kb) = kb_str.parse::<u64>() {
+                        // Use 1/8 of available memory, but cap at 1GB
+                        let threshold = (kb * 1024 / 8).min(1024 * 1024 * 1024);
+                        return threshold.max(MMAP_THRESHOLD);
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to default threshold
+    MMAP_THRESHOLD
+}
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SearchMatch {
     pub path: std::path::PathBuf,
     pub line_number: usize,
@@ -32,20 +59,19 @@ pub struct SearchMatch {
 }
 
 lazy_static! {
-    static ref REGEX_CACHE: Mutex<LruCache<String, Regex>> =
-        Mutex::new(LruCache::new(REGEX_CACHE_SIZE.try_into().unwrap()));
+    static ref REGEX_CACHE: DashMap<String, Regex> = DashMap::new();
 }
 
 pub fn is_binary(file: &Path) -> bool {
-    if let Ok(Some(k)) = infer::get_from_path(file)
-        && !k.mime_type().starts_with("text/")
-    {
-        debug!(
-            "Infer detected binary for {}: {}",
-            file.display(),
-            k.mime_type()
-        );
-        return true;
+    if let Ok(Some(k)) = infer::get_from_path(file) {
+        if !k.mime_type().starts_with("text/") {
+            debug!(
+                "Infer detected binary for {}: {}",
+                file.display(),
+                k.mime_type()
+            );
+            return true;
+        }
     }
 
     if let Ok(mut f) = File::open(file) {
@@ -71,6 +97,113 @@ pub fn is_binary(file: &Path) -> bool {
     false
 }
 
+/// Decide whether a file should be skipped entirely before attempting to read/scan it.
+/// Uses extension blacklist, mime detection, executable heuristics and size thresholds.
+pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
+    // Skip directories (caller should avoid passing directories, but be defensive)
+    if metadata.is_dir() {
+        return true;
+    }
+
+    // Skip kernel pseudo-filesystems like /proc and device nodes under /dev by default
+    if let Ok(s) = path.canonicalize() {
+        if let Some(root_str) = s.to_str() {
+            if root_str.starts_with("/proc") || root_str.starts_with("/dev") {
+                debug!("Skipping kernel fs path: {}", path.display());
+                return true;
+            }
+        }
+    }
+
+    // Skip special file types (sockets, pipes, block/char devices)
+    let ftype = metadata.file_type();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::FileTypeExt;
+        if ftype.is_socket()
+            || ftype.is_fifo()
+            || ftype.is_block_device()
+            || ftype.is_char_device()
+            || ftype.is_symlink()
+        {
+            debug!("Skipping special unix file type: {}", path.display());
+            return true;
+        }
+    }
+    #[cfg(windows)]
+    {
+        if ftype.is_symlink() {
+            debug!("Skipping symlink on windows: {}", path.display());
+            return true;
+        }
+    }
+
+    // 1) Extension blacklist (common media, archives, binaries)
+    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+        let ext = ext.to_ascii_lowercase();
+        const SKIP_EXTENSIONS: &[&str] = &[
+            "jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "mp4", "mkv", "mov", "avi", "flv",
+            "wmv", "webm", "mp3", "flac", "wav", "aac", "ogg", "pdf", "doc", "docx", "xls", "xlsx",
+            "ppt", "pptx", "exe", "dll", "so", "dylib", "appimage", "bin", "class", "jar", "iso",
+            "img", "cab", "zip", "tar", "gz", "tgz", "7z", "rar",
+        ];
+        if SKIP_EXTENSIONS.contains(&ext.as_str()) {
+            debug!("Skipping by extension: {}", path.display());
+            return true;
+        }
+    }
+
+    // 2) Executable heuristic: on Unix, if executable bit set and no text extension, skip
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perm = metadata.permissions();
+        if (perm.mode() & 0o111) != 0 {
+            debug!("Skipping executable file: {}", path.display());
+            return true;
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Some(ext) = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_ascii_lowercase())
+        {
+            if ext == "exe" || ext == "dll" || ext == "msi" {
+                debug!("Skipping Windows executable: {}", path.display());
+                return true;
+            }
+        }
+    }
+
+    // 3) Size threshold: avoid scanning huge files (likely media/archives)
+    let file_size = metadata.len();
+    if file_size > MAX_SCAN_FILE_SIZE {
+        debug!(
+            "Skipping large file (> {} bytes): {}",
+            MAX_SCAN_FILE_SIZE,
+            path.display()
+        );
+        return true;
+    }
+
+    // 4) Mime/type detection via infer: skip non-text types
+    if let Ok(Some(kind)) = infer::get_from_path(path) {
+        let mime = kind.mime_type();
+        if !mime.starts_with("text/") {
+            debug!(
+                "Infer detected non-text mime (skip): {} -> {}",
+                path.display(),
+                mime
+            );
+            return true;
+        }
+    }
+
+    false
+}
+
 fn is_binary_content(data: &[u8]) -> bool {
     if data.is_empty() {
         return false;
@@ -81,14 +214,13 @@ fn is_binary_content(data: &[u8]) -> bool {
 }
 
 pub fn get_or_compile_regex(pattern: &str) -> RfgrepResult<Regex> {
-    let mut cache = REGEX_CACHE.lock().unwrap();
-    if let Some(regex) = cache.get(pattern) {
+    if let Some(regex) = REGEX_CACHE.get(pattern) {
         debug!("Regex cache hit for pattern: {pattern}");
         Ok(regex.clone())
     } else {
         debug!("Regex cache miss for pattern: {pattern}. Compiling.");
         let regex = Regex::new(pattern).map_err(RfgrepError::Regex)?;
-        cache.put(pattern.to_string(), regex.clone());
+        REGEX_CACHE.insert(pattern.to_string(), regex.clone());
         Ok(regex)
     }
 }
@@ -101,7 +233,13 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<SearchMatch
     let metadata = file.metadata().map_err(RfgrepError::Io)?;
     let file_size = metadata.len();
 
-    let matches_found = if file_size >= MMAP_THRESHOLD {
+    // Quick heuristic to skip problematic files before trying to mmap/read them.
+    if should_skip(path, &metadata) {
+        info!("Skipping file by pre-scan heuristic: {file_display}");
+        return Ok(vec![]);
+    }
+
+    let matches_found = if file_size >= get_adaptive_mmap_threshold() {
         debug!("Attempting memory mapping for file: {file_display} ({file_size} bytes)");
         match unsafe { Mmap::map(&file) } {
             Ok(mmap) => {
@@ -110,8 +248,17 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<SearchMatch
                     info!("Skipping binary file (mmap): {file_display}");
                     return Ok(vec![]);
                 }
-                let content = unsafe { std::str::from_utf8_unchecked(&mmap) };
-                find_matches_with_context(content.to_string(), pattern, path)?
+                // SAFETY: Validate UTF-8 before conversion
+                match std::str::from_utf8(&mmap) {
+                    Ok(content) => find_matches_with_context(content.to_string(), pattern, path)?,
+                    Err(e) => {
+                        warn!(
+                            "Invalid UTF-8 in file {file_display}, falling back to streaming: {e}"
+                        );
+                        let reader = BufReader::new(file);
+                        find_matches_streaming(reader, pattern, path)?
+                    }
+                }
             }
             Err(_) => {
                 warn!("Failed to memory map, falling back to streaming: {file_display}");

@@ -1,0 +1,226 @@
+.TH RFGREP-PLUGINS 1 "August 2025" "rfgrep v0.2.1" "User Commands"
+
+.SH NAME
+rfgrep-plugins \- Manage search plugins and extensions
+
+.SH SYNOPSIS
+.B rfgrep plugins
+[\fIOPTIONS\fR] \fICOMMAND\fR [\fICOMMAND_OPTIONS\fR]
+
+.SH DESCRIPTION
+The
+.B plugins
+command manages the rfgrep plugin system, allowing you to list, configure, enable/disable, and test various search plugins. The plugin system provides extensible search capabilities for different file types and search patterns.
+
+.SH COMMANDS
+.TP
+.B list
+List all available plugins with their status and information
+.TP
+.B stats
+Show plugin usage statistics and performance metrics
+.TP
+.B info \fINAME\fR
+Show detailed information about a specific plugin
+.TP
+.B enable \fINAME\fR
+Enable a plugin for use in searches
+.TP
+.B disable \fINAME\fR
+Disable a plugin (prevents it from being used)
+.TP
+.B priority \fINAME\fR \fIPRIORITY\fR
+Set the priority of a plugin (lower = higher priority)
+.TP
+.B config \fINAME\fR
+Show configuration options for a plugin
+.TP
+.B test \fINAME\fR \fIFILE\fR \fIPATTERN\fR
+Test a plugin with a specific file and pattern
+
+.SH BUILT-IN PLUGINS
+.TP
+.B enhanced_text
+Advanced text file search with context and highlighting
+.TP
+.B enhanced_binary
+Binary file search with metadata extraction
+.TP
+.B streaming_search
+High-performance streaming search pipeline
+.TP
+.B regex_engine
+Regular expression search engine
+.TP
+.B simd_search
+SIMD-optimized search for maximum performance
+
+.SH PLUGIN FEATURES
+.TP
+.B Dynamic Loading
+Plugins are loaded on-demand for better performance
+.TP
+.B Priority System
+Plugins are selected based on priority and file type compatibility
+.TP
+.B Configuration
+Each plugin can have custom configuration options
+.TP
+.B Streaming Support
+Some plugins support streaming search for large files
+.TP
+.B Statistics
+Track plugin usage and performance metrics
+.TP
+.B Hot-swapping
+Enable/disable plugins without restarting the application
+
+.SH EXAMPLES
+.TP
+List all available plugins:
+.B rfgrep plugins list
+.TP
+Show plugin statistics:
+.B rfgrep plugins stats
+.TP
+Get detailed info about text plugin:
+.B rfgrep plugins info enhanced_text
+.TP
+Enable binary search plugin:
+.B rfgrep plugins enable enhanced_binary
+.TP
+Set plugin priority:
+.B rfgrep plugins priority enhanced_text 10
+.TP
+Test plugin with specific file:
+.B rfgrep plugins test enhanced_text README.md "example"
+.TP
+Show plugin configuration:
+.B rfgrep plugins config enhanced_text
+
+.SH PLUGIN CONFIGURATION
+.TP
+.B Priority
+Lower numbers indicate higher priority (0 = highest)
+.TP
+.B File Extensions
+Plugins can specify which file types they handle
+.TP
+.B Streaming Support
+Some plugins support streaming for large files
+.TP
+.B Algorithm Preference
+Plugins can specify preferred search algorithms
+.TP
+.B Context Lines
+Number of context lines to show around matches
+.TP
+.B Case Sensitivity
+Whether the plugin supports case-sensitive search
+
+.SH PLUGIN DEVELOPMENT
+.TP
+.B Plugin Interface
+Plugins must implement the EnhancedSearchPlugin trait
+.TP
+.B Configuration
+Plugins can define custom configuration options
+.TP
+.B Error Handling
+Plugins should provide meaningful error messages
+.TP
+.B Performance
+Plugins should be optimized for the target file types
+.TP
+.B Documentation
+Plugins should provide clear descriptions and usage info
+
+.SH OUTPUT FORMATS
+.TP
+.B List Command
+Shows plugin name, version, status, and description
+.TP
+.B Stats Command
+Shows usage count, average performance, and file type distribution
+.TP
+.B Info Command
+Shows detailed plugin information including capabilities
+.TP
+.B Test Command
+Shows search results and performance metrics
+
+.SH PERFORMANCE CONSIDERATIONS
+.TP
+.B Plugin Selection
+The system automatically selects the best plugin for each file
+.TP
+.B Caching
+Plugin results are cached for repeated searches
+.TP
+.B Parallel Processing
+Multiple plugins can run in parallel for different files
+.TP
+.B Memory Management
+Plugins use streaming where possible to minimize memory usage
+.TP
+.B Algorithm Optimization
+Plugins can use specialized algorithms for their target file types
+
+.SH TROUBLESHOOTING
+.TP
+.B Plugin Not Found
+Check if the plugin name is correct and the plugin is installed
+.TP
+.B Plugin Failed to Load
+Check plugin dependencies and configuration
+.TP
+.B Poor Performance
+Consider adjusting plugin priority or configuration
+.TP
+.B Memory Issues
+Disable plugins that don't support streaming for large files
+.TP
+.B Configuration Errors
+Use the config command to check plugin settings
+
+.SH EXIT STATUS
+.TP
+.B 0
+Success
+.TP
+.B 1
+General error
+.TP
+.B 2
+Plugin not found
+.TP
+.B 3
+Configuration error
+.TP
+.B 4
+Test failed
+
+.SH NOTES
+.TP
+.B Plugin Priority
+Plugins with lower priority numbers are preferred
+.TP
+.B File Type Detection
+Plugins are selected based on file extension and content analysis
+.TP
+.B Performance Monitoring
+Use the stats command to monitor plugin performance
+.TP
+.B Configuration Management
+Plugin settings are stored in the user configuration file
+
+.SH SEE ALSO
+.BR rfgrep (1),
+.BR rfgrep-search (1),
+.BR rfgrep-tui (1)
+
+.SH AUTHOR
+Written by the rfgrep development team.
+
+.SH COPYRIGHT
+Copyright © 2025 rfgrep contributors. License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

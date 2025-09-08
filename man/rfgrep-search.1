@@ -98,6 +98,9 @@ Regular expression engine (for regex patterns)
 .TP
 .B simple
 Simple linear search (fallback option)
+.TP
+.B simd
+SIMD-optimized search for maximum performance on modern CPUs
 
 .SH EXAMPLES
 .TP
@@ -124,6 +127,12 @@ Invert match (find lines NOT containing pattern):
 .TP
 Limit matches per file:
 .B rfgrep search "debug" \-\-max\-matches 5
+.TP
+Use SIMD algorithm for maximum performance:
+.B rfgrep search "pattern" \-\-algorithm simd
+.TP
+Streaming search with custom timeout:
+.B rfgrep search "error" \-\-timeout-per-file 30
 
 .SH PERFORMANCE OPTIONS
 .TP
@@ -195,5 +204,7 @@ Compiled regex patterns are cached for repeated searches
 
 .SH SEE ALSO
 .BR rfgrep (1),
+.BR rfgrep-tui (1),
+.BR rfgrep-plugins (1),
 .BR rfgrep-interactive (1),
 .BR grep (1) 

@@ -1,0 +1,19 @@
+[Unit]
+Description=rfgrep search daemon (example)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/rfgrep search --ndjson --path /var/lib/rfgrep
+User=rfgrep
+Group=rfgrep
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
