@@ -116,8 +116,10 @@ jobs:
       - name: Check for secrets
         uses: gitleaks/gitleaks-action@v2
         with:
-          args: --redact --no-git --source .
+          args: detect --redact --no-git --source .
           token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITLEAKS_ENABLE_COMMIT_HISTORY: "false"
 
   build-matrix:
     name: Build Artifacts
