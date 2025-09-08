@@ -508,7 +508,23 @@ impl TuiApp {
     fn open_current_file(&mut self) {
         if let Some(current_match) = self.state.matches.get(self.state.current_match_index) {
             self.state.status_message = format!("Opening: {}", current_match.path.display());
-            // TODO: Implement file opening in external editor
+            let path = &current_match.path;
+            // Try $EDITOR if set, otherwise fall back to platform default opener
+            let editor = std::env::var("EDITOR").ok();
+            let result = if let Some(ed) = editor {
+                std::process::Command::new(ed).arg(path).spawn()
+            } else if cfg!(target_os = "macos") {
+                std::process::Command::new("open").arg(path).spawn()
+            } else if cfg!(target_os = "windows") {
+                std::process::Command::new("cmd")
+                    .args(["/C", "start", "", &path.to_string_lossy()])
+                    .spawn()
+            } else {
+                std::process::Command::new("xdg-open").arg(path).spawn()
+            };
+            if result.is_err() {
+                self.state.status_message = format!("Failed to open: {}", path.display());
+            }
         }
     }
 
@@ -521,9 +537,27 @@ impl TuiApp {
         self.state.search_in_progress = true;
         self.state.status_message = "Searching...".to_string();
 
-        // TODO: Implement actual search using the plugin manager
-        // For now, just simulate a search
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // Perform actual search using the plugin manager across current directory recursively
+        use crate::walker::walk_dir;
+        use std::path::Path;
+
+        let pattern = self.state.pattern.clone();
+        let mut all_matches: Vec<SearchMatch> = Vec::new();
+        let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+        // Walk files and search
+        let entries: Vec<_> = walk_dir(Path::new(&cwd), true, false).collect();
+        for entry in entries {
+            let path = entry.path();
+            if path.is_file() {
+                let res = self.plugin_manager.search_file(path, &pattern).await;
+                if let Ok(mut matches) = res {
+                    all_matches.append(&mut matches);
+                }
+            }
+        }
+
+        self.set_matches(all_matches);
 
         self.state.search_in_progress = false;
         self.state.status_message = "Search completed".to_string();
