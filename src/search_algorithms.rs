@@ -16,7 +16,7 @@ impl SimdSearch {
     }
 
     /// Ultra-fast SIMD search using memchr
-    pub fn search(&self, text: &str) -> Vec<usize> {
+    pub fn search(&self, text: &str, _pattern: &str) -> Vec<usize> {
         if self.pattern.is_empty() {
             return vec![];
         }
@@ -39,8 +39,8 @@ impl SimdSearch {
     }
 
     /// Search with context lines
-    pub fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
-        let matches = self.search(text);
+    pub fn search_with_context(&self, text: &str, _pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+        let matches = self.search(text, "");
         let lines: Vec<&str> = text.lines().collect();
         let mut results = Vec::new();
 
@@ -54,15 +54,22 @@ impl SimdSearch {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
+                let column_start = match_pos - text[..match_pos].rfind('\n').unwrap_or(0);
+                let column_end = column_start + self.pattern.len();
+                let matched_text = if column_start < line.len() && column_end <= line.len() {
+                    line[column_start..column_end].to_string()
+                } else {
+                    self.pattern_str.clone()
+                };
+
                 results.push(SearchMatch {
                     line_number,
                     line: line.to_string(),
                     context_before,
                     context_after,
-                    matched_text: self.pattern_str.clone(),
-                    column_start: match_pos - text[..match_pos].rfind('\n').unwrap_or(0),
-                    column_end: match_pos - text[..match_pos].rfind('\n').unwrap_or(0)
-                        + self.pattern.len(),
+                    matched_text,
+                    column_start,
+                    column_end,
                 });
             }
         }
@@ -140,7 +147,7 @@ impl BoyerMoore {
     }
 
     /// Search for the pattern in the given text
-    pub fn search(&self, text: &str) -> Vec<usize> {
+    pub fn search(&self, text: &str, _pattern: &str) -> Vec<usize> {
         let text_bytes = text.as_bytes();
         let pattern_len = self.pattern.len();
         let text_len = text_bytes.len();
@@ -182,8 +189,8 @@ impl BoyerMoore {
     }
 
     /// Search for all occurrences with context
-    pub fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
-        let matches = self.search(text);
+    pub fn search_with_context(&self, text: &str, _pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+        let matches = self.search(text, "");
         let lines: Vec<&str> = text.lines().collect();
         let mut results = Vec::new();
 
@@ -197,15 +204,22 @@ impl BoyerMoore {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
+                let column_start = match_pos - text[..match_pos].rfind('\n').unwrap_or(0);
+                let column_end = column_start + self.pattern.len();
+                let matched_text = if column_start < line.len() && column_end <= line.len() {
+                    line[column_start..column_end].to_string()
+                } else {
+                    self.pattern.iter().map(|&b| b as char).collect()
+                };
+
                 results.push(SearchMatch {
                     line_number,
                     line: line.to_string(),
                     context_before,
                     context_after,
-                    matched_text: self.pattern.iter().map(|&b| b as char).collect(),
-                    column_start: match_pos - text[..match_pos].rfind('\n').unwrap_or(0),
-                    column_end: match_pos - text[..match_pos].rfind('\n').unwrap_or(0)
-                        + self.pattern.len(),
+                    matched_text,
+                    column_start,
+                    column_end,
                 });
             }
         }
@@ -251,7 +265,7 @@ pub struct SearchMatch {
 }
 
 /// Search algorithm types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub enum SearchAlgorithm {
     Simd, // New SIMD-optimized search
@@ -272,13 +286,32 @@ impl SearchAlgorithmFactory {
             SearchAlgorithm::Simple => Box::new(SimpleSearch::new(pattern)),
         }
     }
+
+    pub fn create_with_case_sensitivity(
+        algorithm: SearchAlgorithm,
+        pattern: &str,
+        case_sensitive: bool,
+    ) -> Box<dyn SearchAlgorithmTrait> {
+        match algorithm {
+            SearchAlgorithm::Simd => Box::new(SimdSearch::new(pattern)),
+            SearchAlgorithm::BoyerMoore => Box::new(BoyerMoore::new(pattern)),
+            SearchAlgorithm::Regex => Box::new(RegexSearch::new(pattern)),
+            SearchAlgorithm::Simple => {
+                if case_sensitive {
+                    Box::new(SimpleSearch::new_case_sensitive(pattern))
+                } else {
+                    Box::new(SimpleSearch::new(pattern))
+                }
+            }
+        }
+    }
 }
 
 /// Trait for search algorithms
-pub trait SearchAlgorithmTrait {
+pub trait SearchAlgorithmTrait: Send + Sync {
     #[allow(dead_code)]
-    fn search(&self, text: &str) -> Vec<usize>;
-    fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch>;
+    fn search(&self, text: &str, pattern: &str) -> Vec<usize>;
+    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch>;
 
     fn get_context_before(
         &self,
@@ -306,46 +339,63 @@ pub trait SearchAlgorithmTrait {
 }
 
 impl SearchAlgorithmTrait for SimdSearch {
-    fn search(&self, text: &str) -> Vec<usize> {
-        self.search(text)
+    fn search(&self, text: &str, pattern: &str) -> Vec<usize> {
+        self.search(text, pattern)
     }
 
-    fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
-        self.search_with_context(text, context_lines)
+    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+        self.search_with_context(text, pattern, context_lines)
     }
 }
 
 impl SearchAlgorithmTrait for BoyerMoore {
-    fn search(&self, text: &str) -> Vec<usize> {
-        self.search(text)
+    fn search(&self, text: &str, pattern: &str) -> Vec<usize> {
+        self.search(text, pattern)
     }
 
-    fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
-        self.search_with_context(text, context_lines)
+    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+        self.search_with_context(text, pattern, context_lines)
     }
 }
 
 /// Simple text search implementation
 pub struct SimpleSearch {
     pattern: String,
+    case_sensitive: bool,
 }
 
 impl SimpleSearch {
     pub fn new(pattern: &str) -> Self {
         Self {
-            pattern: pattern.to_string(),
+            pattern: pattern.to_lowercase(),
+            case_sensitive: false,
         }
     }
 
-    pub fn search(&self, text: &str) -> Vec<usize> {
+    pub fn new_case_sensitive(pattern: &str) -> Self {
+        Self {
+            pattern: pattern.to_string(),
+            case_sensitive: true,
+        }
+    }
+}
+
+impl SimpleSearch {
+    pub fn search(&self, text: &str, _pattern: &str) -> Vec<usize> {
         let mut matches = Vec::new();
         let mut pos = 0;
 
-        while let Some(found_pos) = text[pos..].find(&self.pattern) {
+        let search_text = if self.case_sensitive {
+            text.to_string()
+        } else {
+            text.to_lowercase()
+        };
+
+        while let Some(found_pos) = search_text[pos..].find(&self.pattern) {
             matches.push(pos + found_pos);
             pos += found_pos + 1;
 
-            if pos >= text.len() {
+            if pos >= search_text.len() {
                 break;
             }
         }
@@ -353,8 +403,8 @@ impl SimpleSearch {
         matches
     }
 
-    pub fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
-        let matches = self.search(text);
+    pub fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+        let matches = self.search(text, pattern);
         let lines: Vec<&str> = text.lines().collect();
         let mut results = Vec::new();
 
@@ -368,15 +418,22 @@ impl SimpleSearch {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
+                let column_start = match_pos - text[..match_pos].rfind('\n').unwrap_or(0);
+                let column_end = column_start + pattern.len();
+                let matched_text = if column_start < line.len() && column_end <= line.len() {
+                    line[column_start..column_end].to_string()
+                } else {
+                    pattern.to_string()
+                };
+
                 results.push(SearchMatch {
                     line_number,
                     line: line.to_string(),
                     context_before,
                     context_after,
-                    matched_text: self.pattern.clone(),
-                    column_start: match_pos - text[..match_pos].rfind('\n').unwrap_or(0),
-                    column_end: match_pos - text[..match_pos].rfind('\n').unwrap_or(0)
-                        + self.pattern.len(),
+                    matched_text,
+                    column_start,
+                    column_end,
                 });
             }
         }
@@ -386,12 +443,12 @@ impl SimpleSearch {
 }
 
 impl SearchAlgorithmTrait for SimpleSearch {
-    fn search(&self, text: &str) -> Vec<usize> {
-        self.search(text)
+    fn search(&self, text: &str, pattern: &str) -> Vec<usize> {
+        self.search(text, pattern)
     }
 
-    fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
-        self.search_with_context(text, context_lines)
+    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+        self.search_with_context(text, pattern, context_lines)
     }
 }
 
@@ -411,12 +468,12 @@ impl RegexSearch {
         }
     }
 
-    pub fn search(&self, text: &str) -> Vec<usize> {
+    pub fn search(&self, text: &str, _pattern: &str) -> Vec<usize> {
         self.regex.find_iter(text).map(|m| m.start()).collect()
     }
 
-    pub fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
-        let matches = self.search(text);
+    pub fn search_with_context(&self, text: &str, _pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+        let matches = self.search(text, "");
         let lines: Vec<&str> = text.lines().collect();
         let mut results = Vec::new();
 
@@ -456,11 +513,11 @@ impl RegexSearch {
 }
 
 impl SearchAlgorithmTrait for RegexSearch {
-    fn search(&self, text: &str) -> Vec<usize> {
-        self.search(text)
+    fn search(&self, text: &str, pattern: &str) -> Vec<usize> {
+        self.search(text, pattern)
     }
 
-    fn search_with_context(&self, text: &str, context_lines: usize) -> Vec<SearchMatch> {
-        self.search_with_context(text, context_lines)
+    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+        self.search_with_context(text, pattern, context_lines)
     }
 }
