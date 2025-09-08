@@ -53,12 +53,12 @@ impl SearchCache {
     }
 
     /// Get cached search results
-    pub fn get(&self, file_path: &std::path::Path, pattern: &str) -> Option<Vec<SearchMatch>> {
+    pub fn get(&self, file_path: &std::path::Path, pattern: &str, case_sensitive: bool) -> Option<Vec<SearchMatch>> {
         let metadata = self.get_file_metadata(file_path)?;
         let key = CacheKey {
             file_path: file_path.to_path_buf(),
             pattern: pattern.to_string(),
-            case_sensitive: true, // TODO: Make this configurable
+            case_sensitive,
             file_hash: metadata.hash,
         };
 
@@ -66,7 +66,7 @@ impl SearchCache {
     }
 
     /// Insert search results into cache
-    pub fn insert(&self, file_path: &std::path::Path, pattern: &str, matches: Vec<SearchMatch>) {
+    pub fn insert(&self, file_path: &std::path::Path, pattern: &str, case_sensitive: bool, matches: Vec<SearchMatch>) {
         let metadata = match self.get_file_metadata(file_path) {
             Some(meta) => meta,
             None => return, // Can't cache without metadata
@@ -75,7 +75,7 @@ impl SearchCache {
         let key = CacheKey {
             file_path: file_path.to_path_buf(),
             pattern: pattern.to_string(),
-            case_sensitive: true, // TODO: Make this configurable
+            case_sensitive,
             file_hash: metadata.hash,
         };
 
@@ -226,8 +226,8 @@ impl CacheWarmer {
 
         for pattern in patterns {
             paths.par_iter().for_each(|path| {
-                // This would trigger cache population
-                let _ = self.cache.get(path, pattern);
+                // This would trigger cache population (assume case-insensitive default)
+                let _ = self.cache.get(path, pattern, false);
             });
         }
     }
