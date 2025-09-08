@@ -16,6 +16,15 @@ is a high-performance file search and listing utility written in Rust. It provid
 .B Advanced Search
 Regex, plain text, and whole-word matching with context lines
 .TP
+.B Streaming Search
+High-performance streaming search pipeline with configurable chunk sizes
+.TP
+.B Plugin System
+Extensible plugin architecture with dynamic loading and configuration
+.TP
+.B Modern TUI
+Interactive Terminal User Interface with real-time search and navigation
+.TP
 .B File Listing
 Detailed/simple output formats with extension statistics
 .TP
@@ -54,13 +63,19 @@ Print version information
 .SH COMMANDS
 .TP
 .B search
-Search for patterns in files with advanced filtering
+Search for patterns in files with advanced filtering and streaming support
 .TP
 .B interactive
 Interactive search mode with real-time filtering
 .TP
 .B list
 List files with detailed information and statistics
+.TP
+.B plugins
+Manage search plugins and extensions
+.TP
+.B tui
+Interactive Terminal User Interface with modern TUI
 .TP
 .B completions
 Generate shell completion scripts
@@ -81,6 +96,15 @@ Search with regex and copy to clipboard:
 .TP
 Recursive search with word boundaries:
 .B rfgrep search "test" word \-\-recursive \-\-extensions rs
+.TP
+Start interactive TUI mode:
+.B rfgrep tui "pattern" \-\-algorithm boyer-moore
+.TP
+List and manage plugins:
+.B rfgrep plugins list
+.TP
+Use streaming search with custom chunk size:
+.B rfgrep search "error" \-\-algorithm simd \-\-context-lines 3
 
 .SH PERFORMANCE TIPS
 .TP
@@ -136,6 +160,11 @@ Written by the rfgrep development team.
 Copyright © 2025 rfgrep contributors. License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
 
 .SH SEE ALSO
+.BR rfgrep-search (1),
+.BR rfgrep-tui (1),
+.BR rfgrep-plugins (1),
+.BR rfgrep-list (1),
+.BR rfgrep-interactive (1),
 .BR grep (1),
 .BR ripgrep (1),
 .BR find (1)
