@@ -1,5 +1,5 @@
 use crate::processor::SearchMatch;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::path::Path;
 
 /// Output format types
@@ -30,7 +30,7 @@ impl OutputFormatter {
             format,
             include_metadata: true,
             include_context: true,
-            use_color: atty::is(atty::Stream::Stdout),
+            use_color: is_terminal::is_terminal(&std::io::stdout()),
             ndjson: false,
         }
     }
@@ -74,7 +74,6 @@ impl OutputFormatter {
     /// Format as JSON
     #[allow(dead_code)]
     fn format_json(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
-        // If NDJSON requested, emit one JSON object per match (stream-friendly)
         if self.ndjson {
             let mut out = String::new();
             for m in matches {
@@ -357,7 +356,7 @@ impl OutputFormatter {
             } else {
                 ""
             };
-            let matched_text = &m.matched_text; // renamed from matched to avoid conflict
+            let matched_text = &m.matched_text;
             let after = if column_end < line_len {
                 &m.line[column_end..]
             } else {
@@ -401,7 +400,6 @@ impl OutputFormatter {
         for (i, m) in matches.iter().enumerate() {
             output.push_str(&format!("## Match {}\n\n", i + 1));
 
-            // Highlight the match
             let line_len = m.line.len();
             let column_start = m.column_start.min(line_len);
             let column_end = m.column_end.min(line_len);
@@ -421,7 +419,7 @@ impl OutputFormatter {
             output.push_str("**Match:**\n");
             output.push_str("```\n");
             output.push_str(&format!(
-                "→ {:>4} │ {before}{matched}{after}\n", // Corrected variable usage
+                "→ {:>4} │ {before}{matched}{after}\n",
                 m.line_number
             ));
             output.push_str("```\n\n");
