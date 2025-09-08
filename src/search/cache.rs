@@ -53,7 +53,12 @@ impl SearchCache {
     }
 
     /// Get cached search results
-    pub fn get(&self, file_path: &std::path::Path, pattern: &str, case_sensitive: bool) -> Option<Vec<SearchMatch>> {
+    pub fn get(
+        &self,
+        file_path: &std::path::Path,
+        pattern: &str,
+        case_sensitive: bool,
+    ) -> Option<Vec<SearchMatch>> {
         let metadata = self.get_file_metadata(file_path)?;
         let key = CacheKey {
             file_path: file_path.to_path_buf(),
@@ -66,7 +71,13 @@ impl SearchCache {
     }
 
     /// Insert search results into cache
-    pub fn insert(&self, file_path: &std::path::Path, pattern: &str, case_sensitive: bool, matches: Vec<SearchMatch>) {
+    pub fn insert(
+        &self,
+        file_path: &std::path::Path,
+        pattern: &str,
+        case_sensitive: bool,
+        matches: Vec<SearchMatch>,
+    ) {
         let metadata = match self.get_file_metadata(file_path) {
             Some(meta) => meta,
             None => return, // Can't cache without metadata
