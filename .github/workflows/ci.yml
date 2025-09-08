@@ -175,10 +175,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up snapcraft
-        uses: snapcore/action-setup-snapcraft@v1
+      - name: Set up Snapcraft
+        uses: canonical/setup-snapcraft@v2
         with:
-          snapcraft-channel: '8.x/stable'
+          snapcraft-channel: 8.x/stable
 
       - name: Build snap package
         run: |
