@@ -350,12 +350,23 @@ impl RfgrepApp {
         app.state.context_lines = context_lines;
         app.state.search_mode = tui_mode;
 
-        // If pattern is provided, perform initial search
+        // If pattern is provided, perform initial search using plugin manager
         if let Some(p) = pattern {
             app.state.status_message = format!("Searching for: {}", p);
-            // TODO: Implement actual search using plugin manager
-            // For now, just set empty results
-            app.set_matches(vec![]);
+            use std::path::Path;
+            let mut all_matches = Vec::new();
+            let search_root = std::path::PathBuf::from(_path);
+            let search_root = if search_root.as_os_str().is_empty() { std::path::PathBuf::from(".") } else { search_root };
+            let entries: Vec<_> = walk_dir(&search_root, true, false).collect();
+            for entry in entries {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Ok(mut matches) = self.plugin_manager.search_file(path, p).await {
+                        all_matches.append(&mut matches);
+                    }
+                }
+            }
+            app.set_matches(all_matches);
         }
 
         // Run TUI
