@@ -114,7 +114,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for secrets
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@v2
         with:
           args: --redact --no-git --source .
 
