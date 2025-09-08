@@ -115,7 +115,8 @@ impl RfgrepApp {
                     cmd_path.as_ref().map(|p| p.as_path()),
                     cmd_path_flag.as_ref().map(|p| p.as_path()),
                     &cli.path,
-                ).await
+                )
+                .await
             }
             Commands::Interactive { .. } => {
                 println!("Interactive command not yet implemented in simplified version");
@@ -353,10 +354,13 @@ impl RfgrepApp {
         // If pattern is provided, perform initial search using plugin manager
         if let Some(p) = pattern {
             app.state.status_message = format!("Searching for: {}", p);
-            use std::path::Path;
             let mut all_matches = Vec::new();
             let search_root = std::path::PathBuf::from(_path);
-            let search_root = if search_root.as_os_str().is_empty() { std::path::PathBuf::from(".") } else { search_root };
+            let search_root = if search_root.as_os_str().is_empty() {
+                std::path::PathBuf::from(".")
+            } else {
+                search_root
+            };
             let entries: Vec<_> = walk_dir(&search_root, true, false).collect();
             for entry in entries {
                 let path = entry.path();
@@ -386,21 +390,19 @@ impl RfgrepApp {
         show_hidden: bool,
         max_size: Option<usize>,
         min_size: Option<usize>,
-        detailed: bool,
+        _detailed: bool,
         simple: bool,
         stats: bool,
         sort: crate::cli::SortCriteria,
         reverse: bool,
         limit: Option<usize>,
-        copy: bool,
-        output_format: crate::cli::OutputFormat,
+        _copy: bool,
+        _output_format: crate::cli::OutputFormat,
         cmd_path: Option<&Path>,
         cmd_path_flag: Option<&Path>,
         default_path: &Path,
     ) -> RfgrepResult<()> {
-        let search_path = cmd_path_flag
-            .or(cmd_path)
-            .unwrap_or(default_path);
+        let search_path = cmd_path_flag.or(cmd_path).unwrap_or(default_path);
 
         // Discover files
         let entries: Vec<_> = walk_dir(search_path, recursive, show_hidden).collect();
@@ -443,7 +445,9 @@ impl RfgrepApp {
 
         // Sort files
         match sort {
-            crate::cli::SortCriteria::Name => files.sort_by(|a, b| a.file_name().cmp(&b.file_name())),
+            crate::cli::SortCriteria::Name => {
+                files.sort_by(|a, b| a.file_name().cmp(&b.file_name()))
+            }
             crate::cli::SortCriteria::Size => {
                 files.sort_by(|a, b| {
                     let size_a = a.metadata().map(|m| m.len()).unwrap_or(0);
@@ -453,8 +457,14 @@ impl RfgrepApp {
             }
             crate::cli::SortCriteria::Date => {
                 files.sort_by(|a, b| {
-                    let time_a = a.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
-                    let time_b = b.metadata().and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+                    let time_a = a
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .unwrap_or(std::time::UNIX_EPOCH);
+                    let time_b = b
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .unwrap_or(std::time::UNIX_EPOCH);
                     time_a.cmp(&time_b)
                 });
             }
@@ -466,7 +476,7 @@ impl RfgrepApp {
                 });
             }
             crate::cli::SortCriteria::Path => {
-                files.sort_by(|a, b| a.cmp(b));
+                files.sort();
             }
         }
 
@@ -492,7 +502,15 @@ impl RfgrepApp {
                     if let Ok(metadata) = file.metadata() {
                         let size = metadata.len();
                         let modified = metadata.modified().unwrap_or(std::time::UNIX_EPOCH);
-                        println!("{} {} {}", size, modified.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(), file.display());
+                        println!(
+                            "{} {} {}",
+                            size,
+                            modified
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                            file.display()
+                        );
                     } else {
                         println!("{}", file.display());
                     }
@@ -502,10 +520,11 @@ impl RfgrepApp {
             }
             // Always output summary for basic list command
             println!("Summary: {} files found", files.len());
-            
+
             // If long format, also output extension summary
             if long {
-                let mut extensions: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+                let mut extensions: std::collections::HashMap<String, usize> =
+                    std::collections::HashMap::new();
                 for file in &files {
                     if let Some(ext) = file.extension() {
                         if let Some(ext_str) = ext.to_str() {

@@ -22,7 +22,6 @@ use ratatui::{
 };
 use std::io::{self, Stdout};
 use std::sync::Arc;
-use std::time::Duration;
 
 /// TUI application state
 #[derive(Debug, Clone)]

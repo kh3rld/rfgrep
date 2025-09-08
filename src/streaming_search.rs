@@ -6,7 +6,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::task;
 
@@ -54,42 +53,67 @@ impl StreamingSearchPipeline {
         path: &Path,
         pattern: &str,
     ) -> RfgrepResult<Vec<ProcessorSearchMatch>> {
-        let start_time = Instant::now();
-
-        // Check timeout
-        if let Some(timeout) = self.config.timeout_per_file {
-            if start_time.elapsed().as_secs() > timeout {
-                return Err(RfgrepError::Other("File search timeout".to_string()));
-            }
-        }
-
-        // Check if file should be skipped (binary detection)
+        // Early binary check
         if crate::processor::is_binary(path) {
             return Ok(vec![]);
         }
 
-        let file = File::open(path).map_err(RfgrepError::Io)?;
-        let reader = BufReader::with_capacity(self.config.buffer_size, file);
+        // Helper future that performs the actual search
+        let do_search = async {
+            let file = File::open(path).map_err(RfgrepError::Io)?;
+            let reader = BufReader::with_capacity(self.config.buffer_size, file);
 
-        // Create search algorithm instance
-        let search_algo = self.create_search_algorithm(pattern)?;
+            // Create search algorithm instance
+            let search_algo = self.create_search_algorithm(pattern)?;
 
-        // Process file in chunks
-        let matches = self
-            .process_file_streaming(reader, search_algo.as_ref(), pattern, path)
-            .await?;
+            // Process file in chunks
+            let matches = self
+                .process_file_streaming(reader, search_algo.as_ref(), pattern, path)
+                .await?;
 
-        // Apply post-processing
-        let mut final_matches = self.apply_post_processing(matches, path)?;
+            // Apply post-processing
+            let mut final_matches = self.apply_post_processing(matches, path)?;
 
-        // Apply max_matches limit
-        if let Some(max_matches) = self.config.max_matches {
-            if final_matches.len() > max_matches {
-                final_matches.truncate(max_matches);
+            // Apply max_matches limit
+            if let Some(max_matches) = self.config.max_matches {
+                if final_matches.len() > max_matches {
+                    final_matches.truncate(max_matches);
+                }
             }
-        }
 
-        Ok(final_matches)
+            RfgrepResult::Ok(final_matches)
+        };
+
+        if let Some(timeout_secs) = self.config.timeout_per_file {
+            // If test env variable is set, simulate work taking time
+            if let Ok(s) = std::env::var("RFGREP_WORKER_SLEEP") {
+                if let Ok(sec) = s.parse::<u64>() {
+                    // Sleep inside the timed section to simulate long-running work
+                    let sleep_fut = async {
+                        tokio::time::sleep(std::time::Duration::from_secs(sec)).await;
+                        do_search.await
+                    };
+                    return match tokio::time::timeout(
+                        std::time::Duration::from_secs(timeout_secs),
+                        sleep_fut,
+                    )
+                    .await
+                    {
+                        Ok(res) => res,
+                        Err(_elapsed) => Ok(vec![]),
+                    };
+                }
+            }
+            // Enforce per-file timeout: on timeout, return no matches
+            match tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), do_search)
+                .await
+            {
+                Ok(res) => res,
+                Err(_elapsed) => Ok(vec![]),
+            }
+        } else {
+            do_search.await
+        }
     }
 
     /// Search multiple files in parallel
