@@ -176,7 +176,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up snapcraft
-        uses: snapcore/action-setup@v1
+        uses: snapcore/action-setup-snapcraft@v1
         with:
           snapcraft-channel: '8.x/stable'
 
