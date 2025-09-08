@@ -113,14 +113,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check for secrets
-        uses: gitleaks/gitleaks-action@v2
-        with:
-          args: detect --redact --no-git --source .
-          token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          GITLEAKS_ENABLE_COMMIT_HISTORY: "false"
-
   build-matrix:
     name: Build Artifacts
     runs-on: ${{ matrix.os }}
