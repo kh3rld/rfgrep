@@ -39,7 +39,12 @@ impl SimdSearch {
     }
 
     /// Search with context lines
-    pub fn search_with_context(&self, text: &str, _pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+    pub fn search_with_context(
+        &self,
+        text: &str,
+        _pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch> {
         let matches = self.search(text, "");
         let lines: Vec<&str> = text.lines().collect();
         let mut results = Vec::new();
@@ -189,7 +194,12 @@ impl BoyerMoore {
     }
 
     /// Search for all occurrences with context
-    pub fn search_with_context(&self, text: &str, _pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+    pub fn search_with_context(
+        &self,
+        text: &str,
+        _pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch> {
         let matches = self.search(text, "");
         let lines: Vec<&str> = text.lines().collect();
         let mut results = Vec::new();
@@ -311,7 +321,12 @@ impl SearchAlgorithmFactory {
 pub trait SearchAlgorithmTrait: Send + Sync {
     #[allow(dead_code)]
     fn search(&self, text: &str, pattern: &str) -> Vec<usize>;
-    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch>;
+    fn search_with_context(
+        &self,
+        text: &str,
+        pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch>;
 
     fn get_context_before(
         &self,
@@ -340,11 +355,18 @@ pub trait SearchAlgorithmTrait: Send + Sync {
 
 impl SearchAlgorithmTrait for SimdSearch {
     fn search(&self, text: &str, pattern: &str) -> Vec<usize> {
-        self.search(text, pattern)
+        let _ = pattern; // pattern ignored; self.pattern is used
+        SimdSearch::search(self, text, "")
     }
 
-    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
-        self.search_with_context(text, pattern, context_lines)
+    fn search_with_context(
+        &self,
+        text: &str,
+        pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch> {
+        let _ = pattern;
+        SimdSearch::search_with_context(self, text, "", context_lines)
     }
 }
 
@@ -353,7 +375,12 @@ impl SearchAlgorithmTrait for BoyerMoore {
         self.search(text, pattern)
     }
 
-    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+    fn search_with_context(
+        &self,
+        text: &str,
+        pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch> {
         self.search_with_context(text, pattern, context_lines)
     }
 }
@@ -367,8 +394,8 @@ pub struct SimpleSearch {
 impl SimpleSearch {
     pub fn new(pattern: &str) -> Self {
         Self {
-            pattern: pattern.to_lowercase(),
-            case_sensitive: false,
+            pattern: pattern.to_string(),
+            case_sensitive: true,
         }
     }
 
@@ -403,7 +430,12 @@ impl SimpleSearch {
         matches
     }
 
-    pub fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+    pub fn search_with_context(
+        &self,
+        text: &str,
+        pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch> {
         let matches = self.search(text, pattern);
         let lines: Vec<&str> = text.lines().collect();
         let mut results = Vec::new();
@@ -447,7 +479,12 @@ impl SearchAlgorithmTrait for SimpleSearch {
         self.search(text, pattern)
     }
 
-    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+    fn search_with_context(
+        &self,
+        text: &str,
+        pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch> {
         self.search_with_context(text, pattern, context_lines)
     }
 }
@@ -472,7 +509,12 @@ impl RegexSearch {
         self.regex.find_iter(text).map(|m| m.start()).collect()
     }
 
-    pub fn search_with_context(&self, text: &str, _pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+    pub fn search_with_context(
+        &self,
+        text: &str,
+        _pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch> {
         let matches = self.search(text, "");
         let lines: Vec<&str> = text.lines().collect();
         let mut results = Vec::new();
@@ -517,7 +559,12 @@ impl SearchAlgorithmTrait for RegexSearch {
         self.search(text, pattern)
     }
 
-    fn search_with_context(&self, text: &str, pattern: &str, context_lines: usize) -> Vec<SearchMatch> {
+    fn search_with_context(
+        &self,
+        text: &str,
+        pattern: &str,
+        context_lines: usize,
+    ) -> Vec<SearchMatch> {
         self.search_with_context(text, pattern, context_lines)
     }
 }
