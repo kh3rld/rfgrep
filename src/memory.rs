@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub struct AdaptiveMemoryManager {
     config: PerformanceConfig,
     current_memory_usage: Arc<AtomicU64>,
+    peak_memory_usage: Arc<AtomicU64>,
 }
 
 impl AdaptiveMemoryManager {
@@ -15,6 +16,7 @@ impl AdaptiveMemoryManager {
         Self {
             config,
             current_memory_usage: Arc::new(AtomicU64::new(0)),
+            peak_memory_usage: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -63,8 +65,21 @@ impl AdaptiveMemoryManager {
     #[allow(dead_code)]
     pub fn update_memory_usage(&self, bytes: u64) {
         let current = self.current_memory_usage.load(Ordering::Relaxed);
-        self.current_memory_usage
-            .store(current + bytes, Ordering::Relaxed);
+        let new_val = current.saturating_add(bytes);
+        self.current_memory_usage.store(new_val, Ordering::Relaxed);
+        // Update peak usage if we've hit a new high-water mark
+        let mut prev_peak = self.peak_memory_usage.load(Ordering::Relaxed);
+        while new_val > prev_peak {
+            match self.peak_memory_usage.compare_exchange(
+                prev_peak,
+                new_val,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => prev_peak = actual,
+            }
+        }
     }
 
     #[allow(dead_code)]
@@ -80,6 +95,7 @@ impl AdaptiveMemoryManager {
     #[allow(dead_code)]
     pub fn reset_memory_usage(&self) {
         self.current_memory_usage.store(0, Ordering::Relaxed);
+        self.peak_memory_usage.store(0, Ordering::Relaxed);
     }
 }
 
@@ -99,7 +115,7 @@ impl AdaptiveMemoryManager {
     pub fn get_stats(&self) -> MemoryStats {
         MemoryStats {
             current_usage: self.get_current_memory_usage(),
-            peak_usage: self.get_current_memory_usage(), // TODO: track peak
+            peak_usage: self.peak_memory_usage.load(Ordering::Relaxed),
             available_memory: self.get_available_memory(),
             mmap_threshold: self.get_mmap_threshold(),
             chunk_size: self.get_chunk_size(100),
