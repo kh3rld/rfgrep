@@ -69,6 +69,14 @@ pub struct Cli {
     #[clap(long, value_parser, default_value_t = false, global = true)]
     pub skip_binary: bool,
 
+    /// Safety policy for file processing
+    #[clap(long, value_enum, default_value_t = SafetyPolicy::Default, global = true)]
+    pub safety_policy: SafetyPolicy,
+
+    /// Number of threads for parallel file processing
+    #[clap(long, value_parser, global = true)]
+    pub threads: Option<usize>,
+
     #[clap(subcommand)]
     pub command: Commands,
 }
@@ -82,6 +90,19 @@ pub enum ColorChoice {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Run simulations and performance benchmarks to evaluate the current implementation
+    #[clap(after_help = r#"
+SIMULATIONS:
+  Run built-in benchmark scenarios over a test corpus to evaluate performance and limitations.
+
+EXAMPLES:
+  # Run simulations in the current directory (uses bench_data if present)
+  rfgrep simulate
+
+  # Run simulations from a specific path
+  rfgrep simulate --path .
+"#)]
+    Simulate {},
     #[clap(after_help = r#"
 SEARCH MODES:
   text    - Plain text search (default)
@@ -124,6 +145,26 @@ PERFORMANCE TIPS:
 
         #[clap(long, value_parser, use_value_delimiter = true)]
         extensions: Option<Vec<String>>,
+
+        /// File type handling strategy
+        #[clap(long, value_enum, default_value_t = FileTypeStrategy::Default)]
+        file_types: FileTypeStrategy,
+
+        /// Include specific file types (overrides default strategy)
+        #[clap(long, value_parser, use_value_delimiter = true)]
+        include_extensions: Option<Vec<String>>,
+
+        /// Exclude specific file types (overrides default strategy)
+        #[clap(long, value_parser, use_value_delimiter = true)]
+        exclude_extensions: Option<Vec<String>>,
+
+        /// Search all file types (comprehensive mode)
+        #[clap(long, value_parser, default_value_t = false)]
+        search_all_files: bool,
+
+        /// Only search text files (conservative mode)
+        #[clap(long, value_parser, default_value_t = false)]
+        text_only: bool,
 
         #[clap(short, long, value_parser, default_value_t = false)]
         recursive: bool,
@@ -435,6 +476,30 @@ pub enum SearchMode {
     Text,
     Word,
     Regex,
+}
+
+#[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileTypeStrategy {
+    #[default]
+    /// Default behavior - smart classification (recommended)
+    Default,
+    /// Search everything possible (comprehensive)
+    Comprehensive,
+    /// Only search safe text files (conservative)
+    Conservative,
+    /// Performance-first - skip potentially problematic files
+    Performance,
+}
+
+#[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SafetyPolicy {
+    #[default]
+    /// Default safety policy - balanced approach
+    Default,
+    /// Conservative safety - strict file type checking and size limits
+    Conservative,
+    /// Performance mode - relaxed safety for speed
+    Performance,
 }
 
 #[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
