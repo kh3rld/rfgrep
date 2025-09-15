@@ -1,8 +1,8 @@
 [package]
 name = "rfgrep"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
-description = "Recursive file grep utility with advanced filtering - search, list, and analyze text files with regex support"
+description = "Advanced recursive file grep utility with comprehensive file type classification - search, list, and analyze 153+ file formats with intelligent filtering and safety policies"
 homepage = "https://github.com/kh3rld/rfgrep"
 license = "BSD-3-Clause" 
 authors = ["Khalid Hussein <kh3rld.hussein@gmail.com>"]
@@ -14,7 +14,12 @@ keywords = [
     "search",
     "filesystem",
     "cli",
-    "text-processing"
+    "text-processing",
+    "file-types",
+    "classification",
+    "metadata",
+    "performance",
+    "safety"
 ]
 categories = [
     "command-line-utilities",

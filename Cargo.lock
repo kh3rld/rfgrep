@@ -1977,7 +1977,7 @@ dependencies = [
 
 [[package]]
 name = "rfgrep"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "aho-corasick",
  "arboard",
