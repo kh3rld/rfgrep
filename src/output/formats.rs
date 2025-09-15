@@ -101,10 +101,14 @@ impl JsonFormatter {
 
 impl OutputFormatterTrait for JsonFormatter {
     fn format(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
+        self.format_with_timing(matches, query, path, 0.0)
+    }
+
+    fn format_with_timing(&self, matches: &[SearchMatch], query: &str, path: &Path, execution_time_ms: f64) -> String {
         if self.ndjson {
             let mut output = String::new();
             for m in matches {
-                let match_obj = json!({
+                let mut match_obj = json!({
                     "query": query,
                     "path": m.path.to_string_lossy(),
                     "line_number": m.line_number,
@@ -116,6 +120,10 @@ impl OutputFormatterTrait for JsonFormatter {
                     "context_after": m.context_after,
                 });
                 
+                if execution_time_ms > 0.0 {
+                    match_obj["execution_time_ms"] = json!(execution_time_ms);
+                }
+                
                 if let Ok(s) = serde_json::to_string(&match_obj) {
                     output.push_str(&s);
                     output.push('\n');
@@ -123,7 +131,7 @@ impl OutputFormatterTrait for JsonFormatter {
             }
             output
         } else {
-            let result = json!({
+            let mut result = json!({
                 "query": query,
                 "path": path.to_string_lossy(),
                 "total_matches": matches.len(),
@@ -138,6 +146,10 @@ impl OutputFormatterTrait for JsonFormatter {
                     "context_after": m.context_after,
                 })).collect::<Vec<_>>()
             });
+
+            if execution_time_ms > 0.0 {
+                result["execution_time_ms"] = json!(execution_time_ms);
+            }
 
             if self.pretty {
                 serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string())
