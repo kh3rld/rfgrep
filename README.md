@@ -149,6 +149,18 @@ rfgrep list --extensions rs,toml --max-size 10 --show-hidden
 
 ## Documentation
 
+See DESIGN_OPTIMIZATION.md for the latest simulation findings and the optimized framework proposal, including cross-disciplinary applications and roadmap.
+
+### Simulations
+
+Quickly run built-in simulations and write a CSV report to ./results/simulations.csv:
+
+```bash
+rfgrep simulate
+```
+
+You can change the working directory with --path to select a corpus (defaults to . and prefers ./bench_data if present).
+
 ### Man Pages
 
 After installation, comprehensive man pages are available:
@@ -270,6 +282,13 @@ rfgrep completions fish > ~/.config/fish/completions/rfgrep.fish
 | `--skip-binary`    | Skip binary files                   |
 | `--dry-run`        | Preview files without processing    |
 | `--copy`           | Copy results to clipboard           |
+| `--safety-policy`  | Safety policy: default/conservative/performance |
+| `--threads N`      | Number of threads for parallel processing |
+| `--file-types`     | File type strategy: default/comprehensive/conservative/performance |
+| `--include-extensions` | Override to include specific file types |
+| `--exclude-extensions` | Override to exclude specific file types |
+| `--search-all-files` | Search all file types (comprehensive mode) |
+| `--text-only`      | Only search text files (conservative mode) |
 
 ### List Command
 
@@ -300,6 +319,14 @@ rfgrep list --extensions md --max-size 1
 
 ```bash
 rfgrep search "fn\s+\w+\s*\(" --mode regex --copy
+
+# Advanced file type control
+rfgrep search "pattern" --file-types comprehensive --include-extensions pdf,docx
+rfgrep search "pattern" --text-only --safety-policy conservative
+rfgrep search "pattern" --threads 4 --safety-policy performance
+
+# Simulation and benchmarking
+rfgrep simulate
 ```
 
 ## Performance Tips
@@ -307,6 +334,9 @@ rfgrep search "fn\s+\w+\s*\(" --mode regex --copy
 - Use `--skip-binary` to avoid unnecessary file checks
 - Limit scope with `--extensions` and `--max-size`
 - For large directories, `--dry-run` first to preview
+- Use `--safety-policy performance` for faster processing
+- Adjust `--threads` based on your CPU cores
+- Use `--file-types conservative` for safe text-only search
 
 ## Advanced Usage
 
