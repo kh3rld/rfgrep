@@ -1,38 +1,65 @@
-use criterion::{Criterion, criterion_group, criterion_main};
-use rfgrep::AppConfig;
-use rfgrep::Cli;
-use rfgrep::Parser;
+use criterion::{criterion_group, criterion_main, Criterion};
+use rfgrep::search_algorithms::SearchAlgorithm;
+use rfgrep::streaming_search::{StreamingConfig, StreamingSearchPipeline};
 
 use std::fs;
 use tempfile::TempDir;
 
-fn run_external_command(command: &str, args: &[&str], env: Option<&str>) -> std::io::Result<()> {
-    let mut cmd = std::process::Command::new(command);
-    cmd.args(args);
-    if let Some(env_var) = env {
-        cmd.env("RFGREP_TEST_ENV", env_var);
-    }
-    cmd.status()?;
-    Ok(())
-}
-
 fn criterion_benchmark(c: &mut Criterion) {
-    let cli = Cli::parse_from(["rfgrep", "search", "pattern1"]);
-    let config = AppConfig::from_cli(&cli);
-
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let test_dir = temp_dir.path().to_path_buf();
 
-    fs::write(test_dir.join("test.txt"), "This is a test file.")
-        .expect("Failed to write test file");
+    // Create test files
+    fs::write(
+        test_dir.join("test1.txt"),
+        "This is a test file with pattern1 in it.",
+    )
+    .expect("Failed to write test file");
+    fs::write(
+        test_dir.join("test2.txt"),
+        "Another file with pattern1 and more content.",
+    )
+    .expect("Failed to write test file");
+    fs::write(
+        test_dir.join("test3.txt"),
+        "Third file without the pattern.",
+    )
+    .expect("Failed to write test file");
 
-    c.bench_function("rfgrep_search", |b| {
+    // Create streaming search configuration
+    let config = StreamingConfig {
+        algorithm: SearchAlgorithm::BoyerMoore,
+        context_lines: 0,
+        case_sensitive: true,
+        invert_match: false,
+        max_matches: None,
+        timeout_per_file: None,
+        chunk_size: 8192,
+        buffer_size: 65536,
+    };
+
+    let pipeline = StreamingSearchPipeline::new(config);
+    let pattern = "pattern1";
+
+    c.bench_function("rfgrep_search_streaming", |b| {
         b.iter(|| {
-            let _ = run_external_command(
-                config.rfgrep_exe.to_str().unwrap(),
-                &["search", "pattern1", test_dir.to_str().unwrap()],
-                None,
-            );
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let _ = rt.block_on(async {
+                let files = [test_dir.join("test1.txt"), test_dir.join("test2.txt")];
+                let file_refs: Vec<&std::path::Path> = files.iter().map(|p| p.as_path()).collect();
+                pipeline.search_files_parallel(&file_refs, pattern, 2).await
+            });
+        });
+    });
+
+    c.bench_function("rfgrep_search_single_file", |b| {
+        b.iter(|| {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let _ = rt.block_on(async {
+                pipeline
+                    .search_file(&test_dir.join("test1.txt"), pattern)
+                    .await
+            });
         });
     });
 }

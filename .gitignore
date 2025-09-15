@@ -1,2 +1,7 @@
 /target
-Cargo.lock
+/bench_data
+/rfgrep
+*.log
+robustness_test_*.txt
+.idea/
+[binary.bin](http://_vscodecontentref_/25)   # only if you decide to ignore it

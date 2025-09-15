@@ -1,191 +1,268 @@
 # This is the main CI workflow that runs the test suite on all pushes to main and all pull requests.
 # It runs the following Jobs
-name: CI
+name: CI/CD
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev, 'release/**']
+    tags: ["v*", "v*-*"]  # Support prereleases
   pull_request:
-    branches: [main]
-  release:
-    types: [published]
+    branches: [main, dev]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 0"  # Weekly security audit
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
-  CARGO_INCREMENTAL: 0  
+  RUSTFLAGS: "-D warnings -C target-cpu=native"
+  CARGO_INCREMENTAL: 0
+  RUSTUP_MAX_RETRIES: 3
 
 jobs:
-  test:
-    name: Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, 1.87.0]  # MSRV
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust (${{ matrix.rust }})
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.rust }}
-      
-      - name: Cache cargo
-        uses: actions/cache@v3
+          toolchain: stable
+          components: clippy, rustfmt, llvm-tools-preview
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      
-      - name: Run tests
-        run: cargo test --all-features --workspace --verbose
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-      
       - name: Check formatting
         run: cargo fmt --all -- --check
-      
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-      
-      - name: Check for unused dependencies
-        uses: actions-rs/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-  build:
-    name: Build Release
-    needs: [test, lint]
+      - name: Clippy (all features)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    name: Test Suite
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
+      fail-fast: true
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable, 1.87.0]  # MSRV
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: rfgrep-linux
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: rfgrep-windows
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: rfgrep-macos
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Rust (stable)
+
+      - name: Install Rust (${{ matrix.rust }})
         uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.rust }}-
+
+      - name: Run tests
+        run: cargo test --all-features --locked --no-fail-fast
+
+      - name: Run doctests
+        run: cargo test --doc --locked
+
+      - name: Build release
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Security audit
+        uses: actions-rs/audit-check@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-matrix:
+    name: Build Artifacts
+    runs-on: ${{ matrix.os }}
+    needs: [lint, test, security]
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: rfgrep-linux-x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: rfgrep-linux-musl
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: rfgrep-macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: rfgrep-macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: rfgrep-windows-x86_64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust + target
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           target: ${{ matrix.target }}
-      
-      - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
-      
-      - name: Strip debug symbols (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        run: strip target/${{ matrix.target }}/release/rfgrep || true
-      
-      - name: Package artifacts (Unix)
+
+      - name: Build release
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Strip symbols (Unix)
         if: runner.os != 'Windows'
-        shell: bash
+        run: |
+          strip target/${{ matrix.target }}/release/rfgrep* || true
+
+      - name: Package artifact
         run: |
           mkdir -p release
-          cp target/${{ matrix.target }}/release/rfgrep release/
-      - name: Package artifacts (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          mkdir release
-          Copy-Item "target\${{ matrix.target }}\release\rfgrep.exe" release\
-      
-      - name: Generate checksums (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          cd release
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            shasum -a 256 * > SHA256SUMS
-          else
-            sha256sum * > SHA256SUMS
-          fi
+          cp target/${{ matrix.target }}/release/rfgrep* release/
+          tar czf ${{ matrix.artifact_name }}.tar.gz -C release .
 
-      - name: Generate checksums (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cd release
-          certutil -hashfile rfgrep.exe SHA256 > rfgrep.exe.sha256
-      
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: release/
+          path: ${{ matrix.artifact_name }}.tar.gz
 
   release:
     name: Create Release
-    needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [ build-matrix ]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+      packages: write
+
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      
-      - name: Prepare release assets
+          pattern: rfgrep-*
+          merge-multiple: true
+
+      - name: Download snap artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rfgrep-snap
+          path: artifacts
+
+      - name: Create checksums
         run: |
-          mkdir -p dist
-          # Organize by platform
-          for artifact in artifacts/*; do
-            platform=$(basename $artifact | sed 's/rfgrep-//')
-            mkdir -p dist/$platform
-            cp $artifact/* dist/$platform/
-          done
-          
-          # Combine checksums
-          find artifacts -name "SHA256SUMS" -exec cat {} \; > dist/SHA256SUMS
-          find artifacts -name "*.sha256" -exec cat {} \; > dist/SHA256SUMS.windows
-      
+          cd artifacts
+          sha256sum * > SHA256SUMS
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist/**/*
+            artifacts/*
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
-          discussion_category_name: "Announcements"
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish:
+  publish-crates-io:
     name: Publish to Crates.io
-    needs: [test, lint]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/release' && github.event_name == 'push'
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-      
-      - name: Publish to crates.io
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish
         run: |
-          cargo publish --dry-run --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
           cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/rfgrep:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/rfgrep:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  notify:
+    name: Notify Status
+    runs-on: ubuntu-latest
+    needs: [release, publish-crates-io, docker]
+    if: always()
+    steps:
+      - name: Notify Slack
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#ci'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

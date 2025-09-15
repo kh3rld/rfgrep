@@ -1,0 +1,255 @@
+.TH RFGREP-INTERACTIVE 1 "August 2025" "rfgrep v0.2.1" "User Commands"
+
+.SH NAME
+rfgrep-interactive \- Interactive search mode with real-time filtering (legacy)
+
+.SH SYNOPSIS
+.B rfgrep interactive
+[\fIOPTIONS\fR] \fIPATTERN\fR
+
+.SH DESCRIPTION
+The
+.B interactive
+command provides a legacy interactive search interface. For the best experience, consider using the new TUI mode with
+.B rfgrep tui
+which offers a modern interface with better performance and more features.
+
+.SH ARGUMENTS
+.TP
+.B PATTERN
+The initial search pattern to find in files
+
+.SH OPTIONS
+.TP
+.BR \-\-algorithm " " \fIALGORITHM\fR
+Search algorithm to use (boyer-moore, regex, simple)
+.TP
+.BR \-\-extensions " " \fIEXTENSIONS\fR
+Comma-separated list of file extensions to search
+.TP
+.BR \-r ", " \-\-recursive
+Search recursively in subdirectories
+
+.SH INTERACTIVE COMMANDS
+.TP
+.B h
+Show help information
+.TP
+.B q
+Quit interactive mode
+.TP
+.B n
+Start a new search with different pattern
+.TP
+.B f
+Filter results by file extension
+.TP
+.B c
+Clear all filters
+.TP
+.B s
+Save current results to file
+.TP
+.B ↑/↓
+Navigate through search results
+.TP
+.B Enter
+View detailed match information
+.TP
+.B Space
+Toggle result selection
+.TP
+.B /
+Search within current results
+
+.SH INTERACTIVE FEATURES
+.TP
+.B Real-time Filtering
+Filter results by file type, size, or content
+.TP
+.B Result Navigation
+Browse through matches with keyboard shortcuts
+.TP
+.B Context Viewing
+View surrounding code context for each match
+.TP
+.B Result Export
+Save filtered results to various formats
+.TP
+.B Search Refinement
+Modify search patterns without restarting
+.TP
+.B Statistics
+View search statistics and performance metrics
+
+.SH EXAMPLES
+.TP
+Start interactive search for "TODO":
+.B rfgrep interactive "TODO"
+.TP
+Interactive search with regex algorithm:
+.B rfgrep interactive "fn\s+\w+" \-\-algorithm regex
+.TP
+Interactive search in Rust files:
+.B rfgrep interactive "error" \-\-extensions rs
+.TP
+Recursive interactive search:
+.B rfgrep interactive "test" \-\-recursive
+
+.SH INTERACTIVE SESSION EXAMPLE
+.RS
+.PP
+Starting interactive search mode...
+Pattern: TODO
+Algorithm: BoyerMoore
+Files to search: 156
+Press 'q' to quit, 'h' for help
+
+Found 23 matches in 12 files:
+
+[1] src/main.rs:15: // TODO: Implement error handling
+[2] src/processor.rs:42: // TODO: Add caching
+[3] src/search.rs:67: // TODO: Optimize algorithm
+
+Interactive Commands:
+h - Help
+q - Quit
+n - New search
+f - Filter results
+c - Clear filters
+s - Save results
+↑/↓ - Navigate
+Enter - View details
+Space - Toggle selection
+/ - Search within results
+.RE
+
+.SH KEYBOARD SHORTCUTS
+.TP
+.B Navigation
+.RS
+.TP
+.B ↑/↓
+Navigate through results
+.TP
+.B Page Up/Down
+Scroll through results
+.TP
+.B Home/End
+Go to first/last result
+.RE
+.TP
+.B Actions
+.RS
+.TP
+.B Enter
+View detailed match with context
+.TP
+.B Space
+Toggle selection of current result
+.TP
+.B Ctrl+A
+Select all results
+.TP
+.B Ctrl+D
+Deselect all results
+.RE
+.TP
+.B Search
+.RS
+.TP
+.B /
+Search within current results
+.TP
+.B n
+Start new search
+.TP
+.B f
+Filter by file extension
+.RE
+
+.SH FILTERING OPTIONS
+.TP
+.B File Extension
+Filter results by file type (e.g., .rs, .py, .js)
+.TP
+.B File Size
+Filter by file size range
+.TP
+.B Match Count
+Filter by number of matches per file
+.TP
+.B Content
+Filter by content within matches
+.TP
+.B Path
+Filter by file path patterns
+
+.SH OUTPUT FORMATS
+.TP
+.B Text
+Plain text with syntax highlighting
+.TP
+.B JSON
+Structured data for programmatic use
+.TP
+.B CSV
+Comma-separated values for spreadsheet import
+.TP
+.B Markdown
+Formatted for documentation
+
+.SH PERFORMANCE FEATURES
+.TP
+.B Adaptive Memory Management
+Automatically adjusts memory usage based on system resources
+.TP
+.B Caching
+Caches search results and compiled patterns
+.TP
+.B Parallel Processing
+Searches multiple files simultaneously
+.TP
+.B Memory Mapping
+Efficiently handles large files
+
+.SH EXIT STATUS
+.TP
+.B 0
+Success, interactive session completed
+.TP
+.B 1
+Error occurred during interactive session
+.TP
+.B 2
+User interrupted (Ctrl+C)
+
+.SH NOTES
+.TP
+.B Performance
+Interactive mode is optimized for responsiveness
+.TP
+.B Memory
+Uses adaptive memory management for large datasets
+.TP
+.B Caching
+Search results are cached for faster navigation
+.TP
+.B Keyboard
+Full keyboard navigation support
+
+.SH TROUBLESHOOTING
+.TP
+.B Slow Performance
+Use \-\-skip\-binary and limit file extensions
+.TP
+.B Memory Issues
+Reduce search scope or use \-\-max\-size
+.TP
+.B Navigation Problems
+Check terminal supports arrow keys and Enter
+
+.SH SEE ALSO
+.BR rfgrep (1),
+.BR rfgrep-search (1),
+.BR less (1) 

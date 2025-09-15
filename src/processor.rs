@@ -1,122 +1,354 @@
-use anyhow::{Context, Result};
-use colored::*;
+// processor.rs
+//! File-level search helpers and match extraction used by the rfgrep core.
+use crate::error::{Result as RfgrepResult, RfgrepError};
+use crate::file_types::{FileTypeClassifier, SearchDecision};
+// infer is used via `infer::get_from_path` when needed; no top-level import required here
+use dashmap::DashMap;
 use lazy_static::lazy_static;
+use log::{debug, info, warn};
 use memmap2::Mmap;
 use regex::Regex;
+use std::collections::VecDeque;
 use std::fs::File;
-use std::io::Read;
+use std::fs::Metadata;
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::time::Instant;
 
 const CONTEXT_LINES: usize = 2;
 const BINARY_CHECK_SIZE: usize = 8000;
+const MMAP_THRESHOLD: u64 = 16 * 1024 * 1024;
+const MAX_SCAN_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB
 
-#[derive(Debug)]
+/// Get adaptive mmap threshold based on available system memory
+fn get_adaptive_mmap_threshold() -> u64 {
+    #[cfg(unix)]
+    {
+        use std::fs;
+        if let Ok(meminfo) = fs::read_to_string("/proc/meminfo") {
+            if let Some(available_line) = meminfo
+                .lines()
+                .find(|line| line.starts_with("MemAvailable:"))
+            {
+                if let Some(kb_str) = available_line.split_whitespace().nth(1) {
+                    if let Ok(kb) = kb_str.parse::<u64>() {
+                        // Use 1/8 of available memory, but cap at 1GB
+                        let threshold = (kb * 1024 / 8).min(1024 * 1024 * 1024);
+                        return threshold.max(MMAP_THRESHOLD);
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to default threshold
+    MMAP_THRESHOLD
+}
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SearchMatch {
+    pub path: std::path::PathBuf,
     pub line_number: usize,
     pub line: String,
     pub context_before: Vec<(usize, String)>,
     pub context_after: Vec<(usize, String)>,
+    pub matched_text: String,
     pub column_start: usize,
     pub column_end: usize,
 }
 
-// Regex cache for common patterns
 lazy_static! {
-    static ref REGEX_CACHE: std::sync::Mutex<std::collections::HashMap<String, Regex>> =
-        std::sync::Mutex::new(std::collections::HashMap::new());
-}
-
-/// Get a cached regex or compile and cache it
-pub fn get_or_compile_regex(pattern: &str) -> Result<Regex> {
-    let mut cache = REGEX_CACHE.lock().unwrap();
-    if let Some(re) = cache.get(pattern) {
-        return Ok(re.clone());
-    }
-    let re = Regex::new(pattern)?;
-    cache.insert(pattern.to_string(), re.clone());
-    Ok(re)
+    static ref REGEX_CACHE: DashMap<String, Regex> = DashMap::new();
 }
 
 pub fn is_binary(file: &Path) -> bool {
-    if let Ok(mut file) = File::open(file) {
+    if let Ok(Some(k)) = infer::get_from_path(file) {
+        if !k.mime_type().starts_with("text/") {
+            debug!(
+                "Infer detected binary for {}: {}",
+                file.display(),
+                k.mime_type()
+            );
+            return true;
+        }
+    }
+
+    if let Ok(mut f) = File::open(file) {
         let mut buffer = vec![0u8; BINARY_CHECK_SIZE];
-        if let Ok(n) = file.read(&mut buffer) {
-            if n > 0 {
+        match f.read(&mut buffer) {
+            Ok(n) if n > 0 => {
+                // Check for UTF-16 BOMs first
+                if n >= 2 {
+                    let bom_utf16_le = &buffer[0..2] == b"\xff\xfe";
+                    let bom_utf16_be = &buffer[0..2] == b"\xfe\xff";
+                    if bom_utf16_le || bom_utf16_be {
+                        debug!("UTF-16 BOM detected, treating as text: {}", file.display());
+                        return false;
+                    }
+                }
+
+                // Check for UTF-8 BOM
+                if n >= 3 && &buffer[0..3] == b"\xef\xbb\xbf" {
+                    debug!("UTF-8 BOM detected, treating as text: {}", file.display());
+                    return false;
+                }
+
+                // Check for UTF-16 patterns (alternating null bytes)
+                if n >= 4 {
+                    let mut utf16_likely = true;
+                    let mut utf16_be_likely = true;
+
+                    for i in (0..n - 1).step_by(2) {
+                        if i + 1 < n {
+                            // UTF-16 LE: low byte first, high byte second
+                            if buffer[i] != 0 && buffer[i + 1] == 0 {
+                                utf16_likely = false;
+                            }
+                            // UTF-16 BE: high byte first, low byte second
+                            if buffer[i] == 0 && buffer[i + 1] != 0 {
+                                utf16_be_likely = false;
+                            }
+                        }
+                    }
+
+                    if utf16_likely || utf16_be_likely {
+                        debug!(
+                            "UTF-16 pattern detected, treating as text: {}",
+                            file.display()
+                        );
+                        return false;
+                    }
+                }
+
+                // Original null byte heuristic
                 let null_bytes = buffer[..n].iter().filter(|&&b| b == 0).count();
-                return (null_bytes as f64 / n as f64) > 0.3;
+                let binary_threshold = (n as f64 * 0.1).max(1.0);
+                if (null_bytes as f64) > binary_threshold {
+                    debug!(
+                        "Null byte heuristic detected binary file: {}",
+                        f.metadata().map(|m| m.len()).unwrap_or(0)
+                    );
+                    return true;
+                }
+            }
+            Ok(_) => { /* zero bytes read, treat as non-binary */ }
+            Err(e) => {
+                debug!("Failed to read sample from {}: {}", file.display(), e);
             }
         }
     }
     false
 }
 
-/// Search file using memory mapping for I/O efficiency
-pub fn search_file(path: &Path, pattern: &Regex) -> Result<Vec<String>> {
-    let start = Instant::now();
-    let file = File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
-    let mmap =
-        unsafe { Mmap::map(&file).with_context(|| format!("Failed to mmap {}", path.display()))? };
-    let content = std::str::from_utf8(&mmap).unwrap_or("");
-    let mut output = Vec::new();
-    let mut current_context: Vec<SearchMatch> = Vec::new();
-    let lines: Vec<&str> = content.lines().collect();
+/// Decide whether a file should be skipped entirely before attempting to read/scan it.
+/// Uses smart file type classification with extension, MIME, and size analysis.
+pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
+    // Skip directories (caller should avoid passing directories, but be defensive)
+    if metadata.is_dir() {
+        return true;
+    }
+
+    // Skip kernel pseudo-filesystems like /proc and device nodes under /dev by default
+    if let Ok(s) = path.canonicalize() {
+        if let Some(root_str) = s.to_str() {
+            if root_str.starts_with("/proc") || root_str.starts_with("/dev") {
+                debug!("Skipping kernel fs path: {}", path.display());
+                return true;
+            }
+        }
+    }
+
+    // Skip special file types (sockets, pipes, block/char devices)
+    let ftype = metadata.file_type();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::FileTypeExt;
+        if ftype.is_socket()
+            || ftype.is_fifo()
+            || ftype.is_block_device()
+            || ftype.is_char_device()
+            || ftype.is_symlink()
+        {
+            debug!("Skipping special unix file type: {}", path.display());
+            return true;
+        }
+    }
+    #[cfg(windows)]
+    {
+        if ftype.is_symlink() {
+            debug!("Skipping symlink on windows: {}", path.display());
+            return true;
+        }
+    }
+
+    // Use smart file type classification
+    let classifier = FileTypeClassifier::new();
+    match classifier.should_search(path, metadata) {
+        SearchDecision::Search(_) => {
+            debug!("Searching file: {}", path.display());
+            false // Don't skip
+        }
+        SearchDecision::Skip(reason) => {
+            debug!("Skipping file: {} - {}", path.display(), reason);
+            true // Skip
+        }
+        SearchDecision::Conditional(mode, reason) => {
+            debug!(
+                "Conditional search: {} - {} ({:?})",
+                path.display(),
+                reason,
+                mode
+            );
+            false // Don't skip, but use special handling
+        }
+    }
+}
+
+fn is_binary_content(data: &[u8]) -> bool {
+    if data.is_empty() {
+        return false;
+    }
+    let sample_size = data.len().min(BINARY_CHECK_SIZE);
+    let null_bytes = data[..sample_size].iter().filter(|&b| *b == 0).count();
+    (null_bytes as f64 / sample_size as f64) > 0.3
+}
+
+pub fn get_or_compile_regex(pattern: &str) -> RfgrepResult<Regex> {
+    if let Some(regex) = REGEX_CACHE.get(pattern) {
+        debug!("Regex cache hit for pattern: {pattern}");
+        Ok(regex.clone())
+    } else {
+        debug!("Regex cache miss for pattern: {pattern}. Compiling.");
+        let regex = Regex::new(pattern).map_err(RfgrepError::Regex)?;
+        REGEX_CACHE.insert(pattern.to_string(), regex.clone());
+        Ok(regex)
+    }
+}
+
+pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<SearchMatch>> {
+    let _start = Instant::now();
+    let file_display = path.display();
+    debug!("Starting search in file: {file_display}");
+    let file = File::open(path).map_err(RfgrepError::Io)?;
+    let metadata = file.metadata().map_err(RfgrepError::Io)?;
+    let file_size = metadata.len();
+
+    // Quick heuristic to skip problematic files before trying to mmap/read them.
+    if should_skip(path, &metadata) {
+        info!("Skipping file by pre-scan heuristic: {file_display}");
+        return Ok(vec![]);
+    }
+
+    let matches_found = if file_size >= get_adaptive_mmap_threshold() {
+        debug!("Attempting memory mapping for file: {file_display} ({file_size} bytes)");
+        match unsafe { Mmap::map(&file) } {
+            Ok(mmap) => {
+                debug!("Successfully memory mapped file: {file_display}");
+                if is_binary_content(&mmap) {
+                    info!("Skipping binary file (mmap): {file_display}");
+                    return Ok(vec![]);
+                }
+                // SAFETY: Validate UTF-8 before conversion
+                match std::str::from_utf8(&mmap) {
+                    Ok(content) => find_matches_with_context(content.to_string(), pattern, path)?,
+                    Err(e) => {
+                        warn!(
+                            "Invalid UTF-8 in file {file_display}, falling back to streaming: {e}"
+                        );
+                        let reader = BufReader::new(file);
+                        find_matches_streaming(reader, pattern, path)?
+                    }
+                }
+            }
+            Err(_) => {
+                warn!("Failed to memory map, falling back to streaming: {file_display}");
+                let reader = BufReader::new(file);
+                find_matches_streaming(reader, pattern, path)?
+            }
+        }
+    } else {
+        let reader = BufReader::new(file);
+        find_matches_streaming(reader, pattern, path)?
+    };
+
+    debug!(
+        "Finished search in file: {} ({} matches found)",
+        file_display,
+        matches_found.len()
+    );
+    Ok(matches_found)
+}
+
+fn find_matches_with_context(
+    content: String,
+    pattern: &Regex,
+    path: &Path,
+) -> RfgrepResult<Vec<SearchMatch>> {
+    let mut matches = Vec::new();
+    let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
     for (i, line) in lines.iter().enumerate() {
         if let Some(m) = pattern.find(line) {
             let start_idx = i.saturating_sub(CONTEXT_LINES);
             let context_before: Vec<(usize, String)> = (start_idx..i)
-                .map(|idx| (idx + 1, lines[idx].to_string()))
+                .map(|idx| (idx + 1, lines[idx].clone()))
                 .collect();
             let end_idx = (i + CONTEXT_LINES + 1).min(lines.len());
             let context_after: Vec<(usize, String)> = ((i + 1)..end_idx)
                 .map(|idx| (idx + 1, lines[idx].to_string()))
                 .collect();
-            current_context.push(SearchMatch {
+            matches.push(SearchMatch {
+                path: path.to_path_buf(),
                 line_number: i + 1,
-                line: line.to_string(),
+                line: line.clone(),
                 context_before,
                 context_after,
+                matched_text: m.as_str().to_string(),
                 column_start: m.start(),
                 column_end: m.end(),
             });
         }
     }
-    if !current_context.is_empty() {
-        let elapsed = start.elapsed();
-        output.push(format!("\n{} {}:", "File".green().bold(), path.display()));
-        output.push(format!(
-            "{} {} match(es) in {:.2}ms",
-            "Found".green(),
-            current_context.len(),
-            elapsed.as_millis()
-        ));
-        for m in current_context {
-            output.push("-".repeat(80).dimmed().to_string());
-            for (num, line) in m.context_before {
-                output.push(format!(
-                    "  {} │ {}",
-                    num.to_string().dimmed(),
-                    line.dimmed()
-                ));
+    Ok(matches)
+}
+
+fn find_matches_streaming<R: Read>(
+    reader: BufReader<R>,
+    pattern: &Regex,
+    path: &Path,
+) -> RfgrepResult<Vec<SearchMatch>> {
+    let mut matches = Vec::new();
+    let mut buffer: VecDeque<(usize, String)> = VecDeque::with_capacity(2 * CONTEXT_LINES + 1);
+    let mut lines_iter = reader.lines();
+    let mut line_no = 0usize;
+    while let Some(line_res) = lines_iter.next() {
+        line_no += 1;
+        let line = line_res.map_err(RfgrepError::Io)?;
+        buffer.push_back((line_no, line.clone()));
+        if buffer.len() > 2 * CONTEXT_LINES + 1 {
+            buffer.pop_front();
+        }
+        if let Some(m) = pattern.find(&line) {
+            let context_before: Vec<(usize, String)> =
+                buffer.iter().take(CONTEXT_LINES).cloned().collect();
+            let mut context_after = Vec::new();
+            for next in lines_iter.by_ref().take(CONTEXT_LINES) {
+                let nline = next.map_err(RfgrepError::Io)?;
+                line_no += 1;
+                context_after.push((line_no, nline));
             }
-            let before = &m.line[..m.column_start];
-            let matched = &m.line[m.column_start..m.column_end];
-            let after = &m.line[m.column_end..];
-            output.push(format!(
-                "→ {} │ {}{}{}",
-                m.line_number.to_string().yellow().bold(),
-                before,
-                matched.yellow().bold(),
-                after
-            ));
-            for (num, line) in m.context_after {
-                output.push(format!(
-                    "  {} │ {}",
-                    num.to_string().dimmed(),
-                    line.dimmed()
-                ));
-            }
+            matches.push(SearchMatch {
+                path: path.to_path_buf(),
+                line_number: line_no,
+                line: line.clone(),
+                context_before,
+                context_after,
+                matched_text: m.as_str().to_string(),
+                column_start: m.start(),
+                column_end: m.end(),
+            });
         }
     }
-    Ok(output)
+    Ok(matches)
 }

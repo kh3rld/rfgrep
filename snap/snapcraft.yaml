@@ -1,0 +1,53 @@
+name: rfgrep
+base: core22
+adopt-info: rfgrep
+summary: Recursive file grep utility
+description: |
+  rfgrep - Recursive file grep utility optimized for safety and production usage.
+
+license: BSD-3-Clause
+website: https://github.com/kh3rld/rfgrep
+source-code: https://github.com/kh3rld/rfgrep
+issues: https://github.com/kh3rld/rfgrep/issues
+
+grade: stable
+confinement: strict
+architectures:
+  - amd64
+  - arm64
+
+parts:
+  rfgrep:
+    plugin: dump
+    source: .
+    build-packages:
+      - pkg-config
+      - build-essential
+      - curl
+    override-build: |
+      # Install rustup
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      source $HOME/.cargo/env
+      
+      # Build the project
+      cargo build --release
+      
+      # Install the binary
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp target/release/rfgrep $SNAPCRAFT_PART_INSTALL/bin/
+    override-pull: |
+      craftctl default
+      # Extract version from Cargo.toml
+      ver=$(grep -E '^version\s*=' Cargo.toml | sed 's/version\s*=\s*"\([^"]*\)".*/\1/')
+      if [ -n "$ver" ]; then
+        craftctl set version="$ver"
+      fi
+
+apps:
+  rfgrep:
+    command: bin/rfgrep
+    plugs:
+      - home
+      - removable-media
+      - network
+      - network-bind

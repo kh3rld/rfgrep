@@ -61,6 +61,60 @@ git clone https://github.com/kh3rld/rfgrep.git
 cargo build --release
 ```
 
+### Installing Man Pages
+
+After installing rfgrep, you can install the comprehensive man pages:
+
+#### System-wide Installation (requires sudo)
+```bash
+cd man
+sudo make install
+```
+
+#### User Installation (no sudo required)
+```bash
+cd man
+make install-user
+```
+
+Then add to your shell profile (`.bashrc`, `.zshrc`, etc.):
+```bash
+export MANPATH=$MANPATH:$HOME/.local/share/man
+```
+
+### Installing Shell Completions
+
+rfgrep supports tab completion for all major shells:
+
+#### Bash
+```bash
+# Generate and source completion
+rfgrep completions bash >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### Zsh
+```bash
+# Generate completion file
+rfgrep completions zsh > ~/.zsh/completions/_rfgrep
+# Add to .zshrc
+echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+autoload -U compinit && compinit
+```
+
+#### Fish
+```bash
+# Generate and install
+rfgrep completions fish --install --user
+```
+
+#### PowerShell
+```bash
+# Generate and import
+rfgrep completions powershell > rfgrep-completion.ps1
+. rfgrep-completion.ps1
+```
+
 ## Usage
 
 ### Basic Search
@@ -93,6 +147,122 @@ rfgrep list --long --recursive
 rfgrep list --extensions rs,toml --max-size 10 --show-hidden
 ```
 
+## Documentation
+
+See DESIGN_OPTIMIZATION.md for the latest simulation findings and the optimized framework proposal, including cross-disciplinary applications and roadmap.
+
+### Simulations
+
+Quickly run built-in simulations and write a CSV report to ./results/simulations.csv:
+
+```bash
+rfgrep simulate
+```
+
+You can change the working directory with --path to select a corpus (defaults to . and prefers ./bench_data if present).
+
+### Man Pages
+
+After installation, comprehensive man pages are available:
+
+```bash
+# Main man page
+man rfgrep
+
+# Command-specific man pages
+man rfgrep-search
+man rfgrep-interactive
+man rfgrep-list
+man rfgrep-completions
+```
+
+The man pages include:
+- Complete command reference
+- Detailed option descriptions
+- Practical examples
+- Performance tips
+- Troubleshooting guides
+
+### Shell Completions
+
+Once installed, tab completion provides:
+- Command completion (`rfgrep <TAB>`)
+- Option completion (`rfgrep search --<TAB>`)
+- Extension completion (`--extensions <TAB>`)
+- File path completion (`src/<TAB>`)
+
+### Troubleshooting
+
+#### Man Pages Not Found
+```bash
+# Check if man pages are installed
+ls ~/.local/share/man/man1/rfgrep*
+
+# Add to shell profile if needed
+echo 'export MANPATH=$MANPATH:$HOME/.local/share/man' >> ~/.bashrc
+```
+
+#### Completions Not Working
+```bash
+# Regenerate completions
+rfgrep completions bash > ~/.bash_completion.d/rfgrep
+
+# Reload shell configuration
+source ~/.bashrc
+
+# For zsh, ensure completion directory exists
+mkdir -p ~/.zsh/completions
+rfgrep completions zsh > ~/.zsh/completions/_rfgrep
+
+# For fish, install to user directory
+rfgrep completions fish --install --user
+```
+
+#### Performance Issues
+```bash
+# Use dry-run to preview
+rfgrep search "pattern" --dry-run
+
+# Skip binary files
+rfgrep search "pattern" --skip-binary
+
+# Limit file size
+rfgrep search "pattern" --max-size 10
+
+# Use specific extensions
+rfgrep search "pattern" --extensions rs,py,js
+```
+
+#### Shell-Specific Troubleshooting
+
+**Bash:**
+```bash
+# Check if completion is loaded
+complete -p | grep rfgrep
+
+# Manual installation
+rfgrep completions bash >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Zsh:**
+```bash
+# Check completion directory
+ls ~/.zsh/completions/_rfgrep
+
+# Reload completions
+autoload -U compinit && compinit
+```
+
+**Fish:**
+```bash
+# Check if completion is installed
+ls ~/.config/fish/completions/rfgrep.fish
+
+# Manual installation
+rfgrep completions fish > ~/.config/fish/completions/rfgrep.fish
+```
+
 ## Command Reference
 
 ### Global Options
@@ -104,25 +274,32 @@ rfgrep list --extensions rs,toml --max-size 10 --show-hidden
 
 ### Search Command
 
-| Option            | Description                          |
-|-------------------|--------------------------------------|
-| `--mode MODE`     | Search mode: regex/text/word         |
-| `--extensions EXT`| Comma-separated file extensions      |
-| `--max-size MB`   | Skip files larger than specified MB  |
-| `--skip-binary`   | Skip binary files                   |
-| `--dry-run`       | Preview files without processing     |
-| `--copy`          | Copy results to clipboard           |
+| Option             | Description                         |
+|--------------------|-------------------------------------|
+| `--mode MODE`      | Search mode: regex/text/word        |
+| `--extensions EXT` | Comma-separated file extensions     |
+| `--max-size MB`    | Skip files larger than specified MB |
+| `--skip-binary`    | Skip binary files                   |
+| `--dry-run`        | Preview files without processing    |
+| `--copy`           | Copy results to clipboard           |
+| `--safety-policy`  | Safety policy: default/conservative/performance |
+| `--threads N`      | Number of threads for parallel processing |
+| `--file-types`     | File type strategy: default/comprehensive/conservative/performance |
+| `--include-extensions` | Override to include specific file types |
+| `--exclude-extensions` | Override to exclude specific file types |
+| `--search-all-files` | Search all file types (comprehensive mode) |
+| `--text-only`      | Only search text files (conservative mode) |
 
 ### List Command
 
-| Option            | Description                          |
-|-------------------|--------------------------------------|
-| `--extensions EXT`| Comma-separated file extensions      |
-| `--long`          | Detailed output format              |
-| `--recursive`     | Recursive directory traversal       |
-| `--show-hidden`   | Include hidden files/directories    |
-| `--max-size MB`   | Skip files larger than specified MB  |
-| `--skip-binary`   | Skip binary files                   |
+| Option             | Description                         |
+|--------------------|-------------------------------------|
+| `--extensions EXT` | Comma-separated file extensions     |
+| `--long`           | Detailed output format              |
+| `--recursive`      | Recursive directory traversal       |
+| `--show-hidden`    | Include hidden files/directories    |
+| `--max-size MB`    | Skip files larger than specified MB |
+| `--skip-binary`    | Skip binary files                   |
 
 ## Examples
 
@@ -132,16 +309,24 @@ rfgrep list --extensions rs,toml --max-size 10 --show-hidden
 rfgrep search "HashMap" --extensions rs
 ```
 
-2. List all Markdown files under 1MB:
+1. List all Markdown files under 1MB:
 
 ```bash
 rfgrep list --extensions md --max-size 1
 ```
 
-3. Search with regex and copy to clipboard:
+1. Search with regex and copy to clipboard:
 
 ```bash
 rfgrep search "fn\s+\w+\s*\(" --mode regex --copy
+
+# Advanced file type control
+rfgrep search "pattern" --file-types comprehensive --include-extensions pdf,docx
+rfgrep search "pattern" --text-only --safety-policy conservative
+rfgrep search "pattern" --threads 4 --safety-policy performance
+
+# Simulation and benchmarking
+rfgrep simulate
 ```
 
 ## Performance Tips
@@ -149,6 +334,99 @@ rfgrep search "fn\s+\w+\s*\(" --mode regex --copy
 - Use `--skip-binary` to avoid unnecessary file checks
 - Limit scope with `--extensions` and `--max-size`
 - For large directories, `--dry-run` first to preview
+- Use `--safety-policy performance` for faster processing
+- Adjust `--threads` based on your CPU cores
+- Use `--file-types conservative` for safe text-only search
+
+## Advanced Usage
+
+### Interactive Mode
+```bash
+# Start interactive search
+rfgrep interactive "pattern"
+
+# Interactive search with specific algorithm
+rfgrep interactive "pattern" --algorithm boyer-moore
+
+# Interactive search in specific file types
+rfgrep interactive "pattern" --extensions rs,py
+```
+
+### Output Formats
+```bash
+# JSON output for programmatic processing
+rfgrep search "pattern" --output-format json
+
+# XML output for structured data
+rfgrep search "pattern" --output-format xml
+
+# HTML output for web display
+rfgrep search "pattern" --output-format html
+
+# Markdown output for documentation
+rfgrep search "pattern" --output-format markdown
+```
+
+### Search Algorithms
+```bash
+# Boyer-Moore (fast for plain text)
+rfgrep search "pattern" --algorithm boyer-moore
+
+# Regular expression
+rfgrep search "pattern" --algorithm regex
+
+# Simple linear search
+rfgrep search "pattern" --algorithm simple
+```
+
+## Verification
+
+### Test Man Pages
+```bash
+# Verify man pages are accessible
+man rfgrep
+man rfgrep-search
+man rfgrep-interactive
+man rfgrep-list
+man rfgrep-completions
+```
+
+### Test Shell Completions
+```bash
+# Bash: Type 'rfgrep ' and press TAB
+rfgrep <TAB>
+
+# Zsh: Type 'rfgrep ' and press TAB
+rfgrep <TAB>
+
+# Fish: Type 'rfgrep ' and press TAB
+rfgrep <TAB>
+```
+
+### Test Basic Functionality
+```bash
+# Test search functionality
+rfgrep search "test" --extensions rs
+
+# Test list functionality
+rfgrep list --extensions rs
+
+# Test interactive mode
+rfgrep interactive "test" --extensions rs
+```
+
+### Clipboard behavior in CI/headless environments
+
+Note: the `--copy` option attempts to use the system clipboard and may fail in headless CI environments (X11/Wayland not available). In those environments run without `--copy` or provide a virtual display (Xvfb) or configure your CI to provide a clipboard service. The application will log a warning if the clipboard operation times out.
+
+### Automated Testing
+```bash
+# Test shell completions
+./test_completions.sh
+
+# Test man pages
+./test_man_pages.sh
+```
 
 ## Contributing
 
