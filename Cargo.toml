@@ -51,7 +51,7 @@ simplelog = "0.12"
 prometheus = "0.14"
 hyper = { version = "0.14", features = ["full"] }
 memmap2 = "0.9"
-clap_complete = "4.5.54"
+clap_complete = "4.5.57"
 parking_lot = "0.12.4"
 thiserror = "2.0"
 infer = "0.19"
