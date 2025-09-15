@@ -15,6 +15,7 @@ pub mod app_simple;
 pub mod cli;
 mod config;
 pub mod error;
+pub mod file_types;
 mod interactive;
 pub mod list;
 mod memory;
