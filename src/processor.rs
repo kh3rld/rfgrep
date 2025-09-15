@@ -1,6 +1,7 @@
 // processor.rs
 //! File-level search helpers and match extraction used by the rfgrep core.
 use crate::error::{Result as RfgrepResult, RfgrepError};
+use crate::file_types::{FileTypeClassifier, SearchDecision};
 // infer is used via `infer::get_from_path` when needed; no top-level import required here
 use dashmap::DashMap;
 use lazy_static::lazy_static;
@@ -78,6 +79,50 @@ pub fn is_binary(file: &Path) -> bool {
         let mut buffer = vec![0u8; BINARY_CHECK_SIZE];
         match f.read(&mut buffer) {
             Ok(n) if n > 0 => {
+                // Check for UTF-16 BOMs first
+                if n >= 2 {
+                    let bom_utf16_le = &buffer[0..2] == b"\xff\xfe";
+                    let bom_utf16_be = &buffer[0..2] == b"\xfe\xff";
+                    if bom_utf16_le || bom_utf16_be {
+                        debug!("UTF-16 BOM detected, treating as text: {}", file.display());
+                        return false;
+                    }
+                }
+
+                // Check for UTF-8 BOM
+                if n >= 3 && &buffer[0..3] == b"\xef\xbb\xbf" {
+                    debug!("UTF-8 BOM detected, treating as text: {}", file.display());
+                    return false;
+                }
+
+                // Check for UTF-16 patterns (alternating null bytes)
+                if n >= 4 {
+                    let mut utf16_likely = true;
+                    let mut utf16_be_likely = true;
+
+                    for i in (0..n - 1).step_by(2) {
+                        if i + 1 < n {
+                            // UTF-16 LE: low byte first, high byte second
+                            if buffer[i] != 0 && buffer[i + 1] == 0 {
+                                utf16_likely = false;
+                            }
+                            // UTF-16 BE: high byte first, low byte second
+                            if buffer[i] == 0 && buffer[i + 1] != 0 {
+                                utf16_be_likely = false;
+                            }
+                        }
+                    }
+
+                    if utf16_likely || utf16_be_likely {
+                        debug!(
+                            "UTF-16 pattern detected, treating as text: {}",
+                            file.display()
+                        );
+                        return false;
+                    }
+                }
+
+                // Original null byte heuristic
                 let null_bytes = buffer[..n].iter().filter(|&&b| b == 0).count();
                 let binary_threshold = (n as f64 * 0.1).max(1.0);
                 if (null_bytes as f64) > binary_threshold {
@@ -98,7 +143,7 @@ pub fn is_binary(file: &Path) -> bool {
 }
 
 /// Decide whether a file should be skipped entirely before attempting to read/scan it.
-/// Uses extension blacklist, mime detection, executable heuristics and size thresholds.
+/// Uses smart file type classification with extension, MIME, and size analysis.
 pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
     // Skip directories (caller should avoid passing directories, but be defensive)
     if metadata.is_dir() {
@@ -138,70 +183,27 @@ pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
         }
     }
 
-    // 1) Extension blacklist (common media, archives, binaries)
-    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-        let ext = ext.to_ascii_lowercase();
-        const SKIP_EXTENSIONS: &[&str] = &[
-            "jpg", "jpeg", "png", "gif", "bmp", "webp", "ico", "mp4", "mkv", "mov", "avi", "flv",
-            "wmv", "webm", "mp3", "flac", "wav", "aac", "ogg", "pdf", "doc", "docx", "xls", "xlsx",
-            "ppt", "pptx", "exe", "dll", "so", "dylib", "appimage", "bin", "class", "jar", "iso",
-            "img", "cab", "zip", "tar", "gz", "tgz", "7z", "rar",
-        ];
-        if SKIP_EXTENSIONS.contains(&ext.as_str()) {
-            debug!("Skipping by extension: {}", path.display());
-            return true;
+    // Use smart file type classification
+    let classifier = FileTypeClassifier::new();
+    match classifier.should_search(path, metadata) {
+        SearchDecision::Search(_) => {
+            debug!("Searching file: {}", path.display());
+            false // Don't skip
         }
-    }
-
-    // 2) Executable heuristic: on Unix, if executable bit set and no text extension, skip
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perm = metadata.permissions();
-        if (perm.mode() & 0o111) != 0 {
-            debug!("Skipping executable file: {}", path.display());
-            return true;
+        SearchDecision::Skip(reason) => {
+            debug!("Skipping file: {} - {}", path.display(), reason);
+            true // Skip
         }
-    }
-    #[cfg(windows)]
-    {
-        if let Some(ext) = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_ascii_lowercase())
-        {
-            if ext == "exe" || ext == "dll" || ext == "msi" {
-                debug!("Skipping Windows executable: {}", path.display());
-                return true;
-            }
-        }
-    }
-
-    // 3) Size threshold: avoid scanning huge files (likely media/archives)
-    let file_size = metadata.len();
-    if file_size > MAX_SCAN_FILE_SIZE {
-        debug!(
-            "Skipping large file (> {} bytes): {}",
-            MAX_SCAN_FILE_SIZE,
-            path.display()
-        );
-        return true;
-    }
-
-    // 4) Mime/type detection via infer: skip non-text types
-    if let Ok(Some(kind)) = infer::get_from_path(path) {
-        let mime = kind.mime_type();
-        if !mime.starts_with("text/") {
+        SearchDecision::Conditional(mode, reason) => {
             debug!(
-                "Infer detected non-text mime (skip): {} -> {}",
+                "Conditional search: {} - {} ({:?})",
                 path.display(),
-                mime
+                reason,
+                mode
             );
-            return true;
+            false // Don't skip, but use special handling
         }
     }
-
-    false
 }
 
 fn is_binary_content(data: &[u8]) -> bool {
