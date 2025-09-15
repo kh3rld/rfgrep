@@ -96,6 +96,7 @@ impl RfgrepApp {
                 }
             }
 
+            let start_time = std::time::Instant::now();
             let matches = self.search_engine.search(
                 search_root,
                 pattern,
@@ -112,27 +113,37 @@ impl RfgrepApp {
                 cli.skip_binary,
                 cli.dry_run,
             ).await?;
+            let execution_time = start_time.elapsed().as_secs_f64() * 1000.0; // Convert to milliseconds
 
             if matches.is_empty() {
-                println!("{}", "No matches found".yellow());
+                if *output_format != cli::OutputFormat::Json {
+                    println!("{}", "No matches found".yellow());
+                }
             } else {
-                println!(
-                    "\n{} {} {}",
-                    "Found".green(),
-                    matches.len(),
-                    "matches:".green()
-                );
+                if *output_format != cli::OutputFormat::Json {
+                    println!(
+                        "\n{} {} {}",
+                        "Found".green(),
+                        matches.len(),
+                        "matches:".green()
+                    );
+                }
 
-                let output = self.output_manager.format_results(
+                let output = self.output_manager.format_results_with_timing(
                     &matches,
                     pattern,
                     search_root,
                     *output_format,
                     *ndjson,
                     cli.color,
+                    execution_time,
                 )?;
 
-                println!("\n{output}");
+                if *output_format == cli::OutputFormat::Json {
+                    print!("{output}");
+                } else {
+                    println!("\n{output}");
+                }
 
                 if *copy && !matches.is_empty() {
                     self.output_manager.copy_to_clipboard(&output)?;
