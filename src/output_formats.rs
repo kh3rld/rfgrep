@@ -1,5 +1,5 @@
 use crate::processor::SearchMatch;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::path::Path;
 
 /// Output format types
@@ -19,6 +19,8 @@ pub struct OutputFormatter {
     format: OutputFormat,
     include_metadata: bool,
     include_context: bool,
+    use_color: bool,
+    ndjson: bool,
 }
 
 impl OutputFormatter {
@@ -28,7 +30,21 @@ impl OutputFormatter {
             format,
             include_metadata: true,
             include_context: true,
+            use_color: is_terminal::is_terminal(&std::io::stdout()),
+            ndjson: false,
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_ndjson(mut self, ndjson: bool) -> Self {
+        self.ndjson = ndjson;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_color(mut self, use_color: bool) -> Self {
+        self.use_color = use_color;
+        self
     }
 
     #[allow(dead_code)]
@@ -58,6 +74,66 @@ impl OutputFormatter {
     /// Format as JSON
     #[allow(dead_code)]
     fn format_json(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
+        if self.ndjson {
+            let mut out = String::new();
+            for m in matches {
+                let mut match_obj = json!({
+                    "query": query,
+                    "path": m.path.to_string_lossy(),
+                    "line_number": m.line_number,
+                    "line": m.line,
+                    "matched_text": m.matched_text,
+                    "column_start": m.column_start,
+                    "column_end": m.column_end,
+                });
+
+                if self.include_context {
+                    let context_before: Vec<Value> = m
+                        .context_before
+                        .iter()
+                        .map(|(num, line)| {
+                            json!({
+                                "line_number": num,
+                                "content": line
+                            })
+                        })
+                        .collect();
+
+                    let context_after: Vec<Value> = m
+                        .context_after
+                        .iter()
+                        .map(|(num, line)| {
+                            json!({
+                                "line_number": num,
+                                "content": line
+                            })
+                        })
+                        .collect();
+
+                    match_obj["context_before"] = Value::Array(context_before);
+                    match_obj["context_after"] = Value::Array(context_after);
+                }
+
+                match serde_json::to_string(&match_obj) {
+                    Ok(s) => {
+                        out.push_str(&s);
+                        out.push('\n');
+                    }
+                    Err(e) => {
+                        let err_obj =
+                            json!({"error": "json_serialization_failed", "details": e.to_string()});
+                        if let Ok(s) = serde_json::to_string(&err_obj) {
+                            out.push_str(&s);
+                            out.push('\n');
+                        } else {
+                            out.push_str("{\"error\":\"json_serialization_failed\"}\n");
+                        }
+                    }
+                }
+            }
+            return out;
+        }
+
         let mut result = json!({
             "query": query,
             "path": path.to_string_lossy(),
@@ -69,6 +145,7 @@ impl OutputFormatter {
 
         for m in matches {
             let mut match_obj = json!({
+                "path": m.path.to_string_lossy(),
                 "line_number": m.line_number,
                 "line": m.line,
                 "matched_text": m.matched_text,
@@ -106,30 +183,24 @@ impl OutputFormatter {
             matches_array.push(match_obj);
         }
 
-        serde_json::to_string_pretty(&result).unwrap()
+        serde_json::to_string(&result).unwrap_or_else(|e| {
+            format!(r#"{{"error":"json_serialization_failed","details":"{e}"}}"#)
+        })
     }
 
     /// Format as plain text (default)
     #[allow(dead_code)]
     fn format_text(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String {
         let mut output = String::new();
-
+        // metadata header
         if self.include_metadata {
             output.push_str(&format!("Query: {query}\n"));
             output.push_str(&format!("Path: {}\n", path.display()));
             output.push_str(&format!("Total matches: {}\n\n", matches.len()));
         }
 
-        for (i, m) in matches.iter().enumerate() {
-            output.push_str(&format!("[{}]\n", i + 1));
-
-            if self.include_context {
-                for (num, line) in &m.context_before {
-                    output.push_str(&format!("  {num} │ {line}\n"));
-                }
-            }
-
-            // Highlight the match
+        // default one-line-per-match: path:line:col: line-with-highlight
+        for m in matches {
             let line_len = m.line.len();
             let column_start = m.column_start.min(line_len);
             let column_end = m.column_end.min(line_len);
@@ -146,17 +217,37 @@ impl OutputFormatter {
                 ""
             };
 
-            output.push_str(&format!(
-                "→ {} │ {}{}{}\n",
-                m.line_number, before, matched, after
-            ));
+            if self.use_color {
+                // ANSI yellow highlight for match
+                let highlighted = format!("\x1b[33m{matched}\x1b[0m");
+                output.push_str(&format!(
+                    "{}:{}:{}: {before}{highlighted}{after}\n",
+                    m.path.display(),
+                    m.line_number,
+                    column_start + 1
+                ));
+            } else {
+                output.push_str(&format!(
+                    "{}:{}:{}: {before}{matched}{after}\n",
+                    m.path.display(),
+                    m.line_number,
+                    column_start + 1
+                ));
+            }
 
-            if self.include_context {
+            // if context requested, append a small block
+            if self.include_context && (!m.context_before.is_empty() || !m.context_after.is_empty())
+            {
+                output.push_str("-- context --\n");
+                for (num, line) in &m.context_before {
+                    output.push_str(&format!("  {num} │ {line}\n"));
+                }
+                output.push_str(&format!("→ {} │ {before}{matched}{after}\n", m.line_number));
                 for (num, line) in &m.context_after {
                     output.push_str(&format!("  {num} │ {line}\n"));
                 }
+                output.push('\n');
             }
-            output.push('\n');
         }
 
         output
@@ -265,7 +356,7 @@ impl OutputFormatter {
             } else {
                 ""
             };
-            let matched = &m.matched_text;
+            let matched_text = &m.matched_text;
             let after = if column_end < line_len {
                 &m.line[column_end..]
             } else {
@@ -275,7 +366,7 @@ impl OutputFormatter {
             output.push_str("<div>");
             let matched_html = format!(
                 "<span class=\"matched-text\">{}</span>",
-                escape_html(matched)
+                escape_html(matched_text)
             );
             output.push_str(&format!(
                 "<span class=\"line-number\">→ {:>4}</span> │ {}{}{}",
@@ -309,7 +400,6 @@ impl OutputFormatter {
         for (i, m) in matches.iter().enumerate() {
             output.push_str(&format!("## Match {}\n\n", i + 1));
 
-            // Highlight the match
             let line_len = m.line.len();
             let column_start = m.column_start.min(line_len);
             let column_end = m.column_end.min(line_len);
@@ -329,8 +419,8 @@ impl OutputFormatter {
             output.push_str("**Match:**\n");
             output.push_str("```\n");
             output.push_str(&format!(
-                "→ {:>4} │ {}{}{}\n",
-                m.line_number, before, matched, after
+                "→ {:>4} │ {before}{matched}{after}\n",
+                m.line_number
             ));
             output.push_str("```\n\n");
         }

@@ -31,6 +31,7 @@ fn run_readme_examples() -> Result<(), Box<dyn std::error::Error>> {
     Command::new(&bin)
         .arg("search")
         .arg("pattern")
+        .arg("--recursive")
         .arg("--")
         .arg("bench_data")
         .assert()

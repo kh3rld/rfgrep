@@ -1,8 +1,8 @@
 [package]
 name = "rfgrep"
-version = "0.2.1"
-edition = "2024"
-description = "Recursive file grep utility with advanced filtering - search, list, and analyze text files with regex support"
+version = "0.3.0"
+edition = "2021"
+description = "Advanced recursive file grep utility with comprehensive file type classification - search, list, and analyze 153+ file formats with intelligent filtering and safety policies"
 homepage = "https://github.com/kh3rld/rfgrep"
 license = "BSD-3-Clause" 
 authors = ["Khalid Hussein <kh3rld.hussein@gmail.com>"]
@@ -14,7 +14,12 @@ keywords = [
     "search",
     "filesystem",
     "cli",
-    "text-processing"
+    "text-processing",
+    "file-types",
+    "classification",
+    "metadata",
+    "performance",
+    "safety"
 ]
 categories = [
     "command-line-utilities",
@@ -33,11 +38,10 @@ doc = false
 
 [dependencies]
 arboard = "3.2"
-atty = "0.2"
+is-terminal = "0.4"
 byte-unit = "5.1.6"
 clap = { version = "4.4", features = ["derive"] }
 colored = "3.0.0"
-console = "0.16"
 dialoguer = "0.11"
 env_logger = "0.11.8"
 indicatif = { version = "0.18", features = ["improved_unicode"] }
@@ -49,7 +53,8 @@ regex = { version = "1.9", features = ["unicode"] }
 serde = { version = "1.0", features = ["derive"] }
 walkdir = "2.3"
 simplelog = "0.12"
-numfmt = "1.1.1"
+prometheus = "0.14"
+hyper = { version = "0.14", features = ["full"] }
 memmap2 = "0.9"
 clap_complete = "4.5.54"
 parking_lot = "0.12.4"
@@ -59,10 +64,20 @@ lru = "0.16"
 serde_with = "3.14.0"
 dirs = "6.0.0"
 toml = "0.9.4"
-tokio = { version = "1.47.1", features = ["rt", "sync", "fs", "macros", "time", "net", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 chrono = "0.4"
 serde_json = "1.0.142"
 ignore = "0.4.23"
+crossbeam-channel = "0.5"
+nix = { version = "0.30", optional = false }
+libc = "0.2"
+ctrlc = "3.4"
+memchr = "2.7"
+dashmap = "5.5"
+aho-corasick = "1.1"
+serde_yaml = "0.9"
+ratatui = "0.28"
+crossterm = "0.28"
 
 # Development dependencies
 [dev-dependencies]

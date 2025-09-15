@@ -1,0 +1,29 @@
+name: rfgrep
+version: 0.2.1
+summary: Recursive file grep utility
+description: |
+  rfgrep - Recursive file grep utility optimized for safety and production usage.
+license: BSD-3-Clause
+architectures:
+- amd64
+base: core22
+apps:
+  rfgrep:
+    command: bin/rfgrep
+    plugs:
+    - home
+    - removable-media
+    - network
+    - network-bind
+confinement: strict
+grade: stable
+environment:
+  LD_LIBRARY_PATH: ${SNAP_LIBRARY_PATH}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+  PATH: $SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH
+links:
+  issues:
+  - https://github.com/kh3rld/rfgrep/issues
+  source-code:
+  - https://github.com/kh3rld/rfgrep
+  website:
+  - https://github.com/kh3rld/rfgrep
