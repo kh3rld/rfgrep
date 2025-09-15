@@ -18,6 +18,9 @@ pub struct OutputManager {
 /// Trait for output formatters
 pub trait OutputFormatterTrait: Send + Sync {
     fn format(&self, matches: &[SearchMatch], query: &str, path: &Path) -> String;
+    fn format_with_timing(&self, matches: &[SearchMatch], query: &str, path: &Path, execution_time_ms: f64) -> String {
+        self.format(matches, query, path)
+    }
     fn name(&self) -> &str;
     fn supports_streaming(&self) -> bool { false }
 }
@@ -57,6 +60,20 @@ impl OutputManager {
         ndjson: bool,
         color: ColorChoice,
     ) -> crate::error::Result<String> {
+        self.format_results_with_timing(matches, query, path, format, ndjson, color, 0.0)
+    }
+
+    /// Format search results with execution time
+    pub fn format_results_with_timing(
+        &self,
+        matches: &[SearchMatch],
+        query: &str,
+        path: &Path,
+        format: CliOutputFormat,
+        ndjson: bool,
+        color: ColorChoice,
+        execution_time_ms: f64,
+    ) -> crate::error::Result<String> {
         let formatter_name = match format {
             CliOutputFormat::Text => "text",
             CliOutputFormat::Json => "json",
@@ -68,7 +85,11 @@ impl OutputManager {
         let formatter = self.formatters.get(formatter_name)
             .ok_or_else(|| crate::error::RfgrepError::Other(format!("Unknown format: {formatter_name}")))?;
 
-        let mut output = formatter.format(matches, query, path);
+        let mut output = if execution_time_ms > 0.0 {
+            formatter.format_with_timing(matches, query, path, execution_time_ms)
+        } else {
+            formatter.format(matches, query, path)
+        };
 
         // Apply color if needed
         if matches!(color, ColorChoice::Always) || 
