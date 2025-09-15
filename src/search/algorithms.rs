@@ -72,16 +72,24 @@ impl SearchAlgorithmTrait for SimdSearch {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
+                let line_start = text[..match_pos].rfind('\n').unwrap_or(0);
+                let column_start = match_pos - line_start;
+                let column_end = column_start + self.pattern.len();
+                let matched_text = if column_start < line.len() && column_end <= line.len() {
+                    line[column_start..column_end].to_string()
+                } else {
+                    self.pattern_str.clone()
+                };
+
                 results.push(SearchMatch {
                     path: Path::new("").to_path_buf(), // Will be set by caller
                     line_number,
                     line: line.to_string(),
                     context_before,
                     context_after,
-                    matched_text: self.pattern_str.clone(),
-                    column_start: match_pos - text[..match_pos].rfind('\n').unwrap_or(0),
-                    column_end: match_pos - text[..match_pos].rfind('\n').unwrap_or(0)
-                        + self.pattern.len(),
+                    matched_text,
+                    column_start,
+                    column_end,
                 });
             }
         }
@@ -309,16 +317,24 @@ impl SearchAlgorithmTrait for FuzzySearch {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
+                let line_start = text[..match_pos].rfind('\n').unwrap_or(0);
+                let column_start = match_pos - line_start;
+                let column_end = column_start + self.pattern.len();
+                let matched_text = if column_start < line.len() && column_end <= line.len() {
+                    line[column_start..column_end].to_string()
+                } else {
+                    self.pattern.clone()
+                };
+
                 results.push(SearchMatch {
                     path: Path::new("").to_path_buf(),
                     line_number,
                     line: line.to_string(),
                     context_before,
                     context_after,
-                    matched_text: self.pattern.clone(),
-                    column_start: match_pos - text[..match_pos].rfind('\n').unwrap_or(0),
-                    column_end: match_pos - text[..match_pos].rfind('\n').unwrap_or(0)
-                        + self.pattern.len(),
+                    matched_text,
+                    column_start,
+                    column_end,
                 });
             }
         }
@@ -462,16 +478,24 @@ impl SearchAlgorithmTrait for RabinKarpSearch {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
+                let line_start = text[..match_pos].rfind('\n').unwrap_or(0);
+                let column_start = match_pos - line_start;
+                let column_end = column_start + self.pattern.len();
+                let matched_text = if column_start < line.len() && column_end <= line.len() {
+                    line[column_start..column_end].to_string()
+                } else {
+                    self.pattern.clone()
+                };
+
                 results.push(SearchMatch {
                     path: Path::new("").to_path_buf(),
                     line_number,
                     line: line.to_string(),
                     context_before,
                     context_after,
-                    matched_text: self.pattern.clone(),
-                    column_start: match_pos - text[..match_pos].rfind('\n').unwrap_or(0),
-                    column_end: match_pos - text[..match_pos].rfind('\n').unwrap_or(0)
-                        + self.pattern.len(),
+                    matched_text,
+                    column_start,
+                    column_end,
                 });
             }
         }
