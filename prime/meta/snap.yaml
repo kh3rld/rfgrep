@@ -1,5 +1,5 @@
 name: rfgrep
-version: 0.2.1
+version: 0.3.0
 summary: Recursive file grep utility
 description: |
   rfgrep - Recursive file grep utility optimized for safety and production usage.
