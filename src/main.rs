@@ -16,6 +16,7 @@ mod app_simple;
 mod cli;
 mod config;
 mod error;
+mod file_types;
 mod memory;
 mod output_formats;
 mod plugin_cli;
@@ -64,17 +65,25 @@ fn main_inner() -> RfgrepResult<()> {
     // setup_logging(&cli)?;
 
     let start_time = Instant::now();
-    println!("Application started with command: {:?}", cli.command);
+
+    // Check if we should suppress verbose output for JSON format
+    let suppress_verbose = matches!(&cli.command, Commands::Search { output_format, .. } if output_format == &cli::OutputFormat::Json);
+
+    if !suppress_verbose {
+        println!("Application started with command: {:?}", cli.command);
+    }
 
     // Create and run the application
     let app = app_simple::RfgrepApp::new()?;
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(app.run(cli))?;
 
-    println!(
-        "Application finished. Total elapsed time: {:.2?}",
-        start_time.elapsed()
-    );
+    if !suppress_verbose {
+        println!(
+            "Application finished. Total elapsed time: {:.2?}",
+            start_time.elapsed()
+        );
+    }
     Ok(())
 }
 
