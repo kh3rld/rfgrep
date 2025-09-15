@@ -214,7 +214,8 @@ impl BoyerMoore {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
-                let column_start = match_pos - text[..match_pos].rfind('\n').unwrap_or(0);
+                let line_start = text[..match_pos].rfind('\n').unwrap_or(0);
+                let column_start = match_pos - line_start;
                 let column_end = column_start + self.pattern.len();
                 let matched_text = if column_start < line.len() && column_end <= line.len() {
                     line[column_start..column_end].to_string()
@@ -450,7 +451,8 @@ impl SimpleSearch {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
-                let column_start = match_pos - text[..match_pos].rfind('\n').unwrap_or(0);
+                let line_start = text[..match_pos].rfind('\n').unwrap_or(0);
+                let column_start = match_pos - line_start;
                 let column_end = column_start + pattern.len();
                 let matched_text = if column_start < line.len() && column_end <= line.len() {
                     line[column_start..column_end].to_string()
