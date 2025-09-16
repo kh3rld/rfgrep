@@ -15,11 +15,6 @@ keywords = [
     "filesystem",
     "cli",
     "text-processing",
-    "file-types",
-    "classification",
-    "metadata",
-    "performance",
-    "safety"
 ]
 categories = [
     "command-line-utilities",
@@ -49,6 +44,7 @@ lazy_static = "1.4"
 log = "0.4"
 num_cpus = "1.16"
 rayon = "1.10"
+crossbeam-channel = "0.5"
 regex = { version = "1.9", features = ["unicode"] }
 serde = { version = "1.0", features = ["derive"] }
 walkdir = "2.3"
@@ -68,12 +64,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 chrono = "0.4"
 serde_json = "1.0.142"
 ignore = "0.4.23"
-crossbeam-channel = "0.5"
 nix = { version = "0.30", optional = false }
 libc = "0.2"
 ctrlc = "3.4"
 memchr = "2.7"
-dashmap = "5.5"
 aho-corasick = "1.1"
 serde_yaml = "0.9"
 ratatui = "0.28"
@@ -87,6 +81,9 @@ tempfile = "3.3"
 rand = "0.9"
 criterion = "0.7"
 testing_logger = "0.1.1"
+proptest = "1.4"
+quickcheck = "1.0"
+mockall = "0.13"
 
 [package.metadata.docs.rs]
 all-features = true
