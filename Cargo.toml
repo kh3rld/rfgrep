@@ -71,7 +71,7 @@ memchr = "2.7"
 aho-corasick = "1.1"
 serde_yaml = "0.9"
 ratatui = "0.28"
-crossterm = "0.28"
+crossterm = "0.29"
 
 # Development dependencies
 [dev-dependencies]
