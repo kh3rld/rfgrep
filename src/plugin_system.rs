@@ -3,9 +3,11 @@ use crate::error::Result as RfgrepResult;
 use crate::processor::SearchMatch;
 use crate::search_algorithms::SearchAlgorithm;
 use crate::streaming_search::{StreamingConfig, StreamingSearchPipeline};
+use libloading::{Library, Symbol};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -580,8 +582,8 @@ impl PluginRegistry {
             .register_plugin(Box::new(EnhancedBinarySearchPlugin::new()))
             .await?;
 
-        // TODO: Add dynamic plugin loading from directories
-        // This would involve loading shared libraries and instantiating plugins
+        // Load dynamic plugins from directories
+        self.load_dynamic_plugins().await?;
 
         Ok(())
     }
@@ -597,6 +599,100 @@ impl PluginRegistry {
 
         // Reload plugins
         self.load_plugins().await
+    }
+
+    /// Load dynamic plugins from directories
+    async fn load_dynamic_plugins(&self) -> RfgrepResult<()> {
+        // Get plugin directories from environment or use defaults
+        let plugin_dirs = self.get_plugin_directories();
+
+        for dir in plugin_dirs {
+            if let Err(e) = self.load_plugins_from_directory(&dir).await {
+                log::warn!("Failed to load plugins from directory {:?}: {}", dir, e);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get plugin directories to search
+    fn get_plugin_directories(&self) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+
+        // Add directories from environment variable
+        if let Ok(plugin_path) = std::env::var("RFGREP_PLUGIN_PATH") {
+            for path in plugin_path.split(':') {
+                dirs.push(PathBuf::from(path));
+            }
+        }
+
+        // Add default directories
+        if let Some(home) = dirs::home_dir() {
+            dirs.push(home.join(".local/share/rfgrep/plugins"));
+            dirs.push(home.join(".config/rfgrep/plugins"));
+        }
+
+        // Add system-wide directories
+        dirs.push(PathBuf::from("/usr/local/lib/rfgrep/plugins"));
+        dirs.push(PathBuf::from("/usr/lib/rfgrep/plugins"));
+
+        // Filter to only existing directories
+        dirs.into_iter()
+            .filter(|d| d.exists() && d.is_dir())
+            .collect()
+    }
+
+    /// Load plugins from a specific directory
+    async fn load_plugins_from_directory(&self, dir: &Path) -> RfgrepResult<()> {
+        let entries = std::fs::read_dir(dir)?;
+
+        for entry in entries {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Check if it's a shared library
+            if self.is_plugin_file(&path) {
+                if let Err(e) = self.load_plugin_from_file(&path).await {
+                    log::warn!("Failed to load plugin from {:?}: {}", path, e);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Check if a file is a valid plugin
+    fn is_plugin_file(&self, path: &Path) -> bool {
+        path.extension()
+            .and_then(OsStr::to_str)
+            .map_or(false, |extension| {
+                matches!(extension, "so" | "dylib" | "dll")
+            })
+    }
+
+    /// Load a plugin from a shared library file
+    async fn load_plugin_from_file(&self, path: &Path) -> RfgrepResult<()> {
+        unsafe {
+            let lib = Library::new(path)?;
+
+            // Try to get the plugin creation function
+            let create_plugin: Symbol<unsafe extern "C" fn() -> *mut dyn EnhancedSearchPlugin> =
+                lib.get(b"create_plugin")?;
+
+            let plugin_ptr = create_plugin();
+            if plugin_ptr.is_null() {
+                return Err(crate::error::RfgrepError::Other(
+                    "Plugin creation function returned null".to_string(),
+                ));
+            }
+
+            // Convert raw pointer to Box and register
+            let plugin = Box::from_raw(plugin_ptr);
+            self.manager.register_plugin(plugin).await?;
+
+            log::info!("Successfully loaded dynamic plugin from {:?}", path);
+            Ok(())
+        }
     }
 }
 

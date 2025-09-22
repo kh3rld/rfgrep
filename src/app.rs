@@ -87,7 +87,6 @@ impl RfgrepApp {
                 *recursive
             };
 
-            // Refuse to run as root unless explicitly allowed
             #[cfg(unix)]
             {
                 if unsafe { libc::geteuid() } == 0 && !cli.allow_root {
@@ -113,7 +112,7 @@ impl RfgrepApp {
                 cli.skip_binary,
                 cli.dry_run,
             ).await?;
-            let execution_time = start_time.elapsed().as_secs_f64() * 1000.0; // Convert to milliseconds
+            let execution_time = start_time.elapsed().as_secs_f64() * 1000.0; 
 
             if matches.is_empty() {
                 if *output_format != cli::OutputFormat::Json {
@@ -242,7 +241,6 @@ impl RfgrepApp {
     }
 
     async fn handle_worker(&self, path: &std::path::Path, pattern: &str) -> RfgrepResult<()> {
-        // Worker mode: perform a search on a single file and print NDJSON lines to stdout
         if let Ok(s) = std::env::var("RFGREP_WORKER_SLEEP") {
             if let Ok(sec) = s.parse::<u64>() {
                 std::thread::sleep(std::time::Duration::from_secs(sec));
@@ -254,7 +252,7 @@ impl RfgrepApp {
         
         let formatter = self.output_manager.create_formatter(
             crate::output::OutputFormat::Json,
-            true, // ndjson
+            true, 
         );
         
         let output = formatter.format_results(&matches, pattern, path);
