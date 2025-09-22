@@ -70,8 +70,12 @@ ctrlc = "3.4"
 memchr = "2.7"
 aho-corasick = "1.1"
 serde_yaml = "0.9"
-ratatui = "0.28"
+ratatui = "0.29"
 crossterm = "0.28"
+atty = "0.2"
+rand = { version = "0.9", optional = true }
+tempfile = { version = "3.3", optional = true }
+libloading = "0.8"
 
 # Development dependencies
 [dev-dependencies]
@@ -84,6 +88,10 @@ testing_logger = "0.1.1"
 proptest = "1.4"
 quickcheck = "1.0"
 mockall = "0.13"
+
+[features]
+bench = ["dep:rand", "dep:tempfile"]
+examples = ["dep:rand", "dep:tempfile"]
 
 [package.metadata.docs.rs]
 all-features = true
