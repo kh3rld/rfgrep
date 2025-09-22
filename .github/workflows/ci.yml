@@ -184,11 +184,6 @@ jobs:
           pattern: rfgrep-*
           merge-multiple: true
 
-      - name: Download snap artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: rfgrep-snap
-          path: artifacts
 
       - name: Create checksums
         run: |
