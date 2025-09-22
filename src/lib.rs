@@ -17,12 +17,13 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use rfgrep::{RfgrepApp, Cli, Commands, SearchMode};
+//! use rfgrep::{app_simple::RfgrepApp, Cli, Commands, SearchMode};
 //! use clap::Parser;
 //!
 //! #[tokio::main]
 //! async fn main() -> rfgrep::Result<()> {
-//!     let cli = Cli::parse();
+//!     // In a real application, you would parse from command line
+//!     let cli = Cli::try_parse_from(&["rfgrep", ".", "search", "pattern"]).unwrap();
 //!     let app = RfgrepApp::new_async().await?;
 //!     app.run(cli).await?;
 //!     Ok(())
@@ -35,8 +36,7 @@
 //! use rfgrep::search_algorithms::{SearchAlgorithm, SearchAlgorithmFactory};
 //!
 //! // Create a search algorithm
-//! let factory = SearchAlgorithmFactory::new();
-//! let algorithm = factory.create(SearchAlgorithm::BoyerMoore, "pattern")?;
+//! let algorithm = SearchAlgorithmFactory::create(SearchAlgorithm::BoyerMoore, "pattern");
 //!
 //! // Search in text
 //! let matches = algorithm.search("Hello, world!", "world");
@@ -259,11 +259,14 @@ pub fn load_config() -> AppConfig {
 /// ```rust
 /// use rfgrep::run_external_command;
 ///
-/// // Run a simple command
-/// run_external_command("echo", &["hello"], None)?;
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Run a simple command
+///     run_external_command("echo", &["hello"], None)?;
 ///
-/// // Run with environment variable
-/// run_external_command("env", &[], Some("test_value"))?;
+///     // Run with environment variable
+///     run_external_command("env", &[], Some("test_value"))?;
+///     Ok(())
+/// }
 /// ```
 pub fn run_external_command(
     command: &str,
@@ -296,9 +299,17 @@ pub fn run_external_command(
 /// use rfgrep::{AppConfig, run_benchmarks};
 /// use std::path::Path;
 ///
-/// let config = AppConfig::from_cli(&cli);
-/// let test_dir = Path::new("/path/to/test/files");
-/// run_benchmarks(&config, test_dir)?;
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Create config manually for doctest
+///     let config = AppConfig {
+///         chunk_size: Some(100),
+///         rfgrep_exe: std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("rfgrep")),
+///         results_dir: std::path::PathBuf::from("results"),
+///     };
+///     let test_dir = Path::new("/path/to/test/files");
+///     run_benchmarks(&config, test_dir)?;
+///     Ok(())
+/// }
 /// ```
 pub fn run_benchmarks(config: &AppConfig, test_dir: &Path) -> Result<()> {
     println!("Warming up rfgrep...");
@@ -345,8 +356,12 @@ pub fn run_benchmarks(config: &AppConfig, test_dir: &Path) -> Result<()> {
 /// use rfgrep::{Cli, run_benchmarks_cli};
 /// use clap::Parser;
 ///
-/// let cli = Cli::parse();
-/// run_benchmarks_cli(&cli)?;
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // In a real application, you would parse from command line
+///     let cli = Cli::try_parse_from(&["rfgrep", ".", "search", "pattern"]).unwrap();
+///     run_benchmarks_cli(&cli)?;
+///     Ok(())
+/// }
 /// ```
 pub fn run_benchmarks_cli(cli: &Cli) -> Result<()> {
     let config = AppConfig::from_cli(cli);
