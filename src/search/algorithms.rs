@@ -82,7 +82,7 @@ impl SearchAlgorithmTrait for SimdSearch {
                 };
 
                 results.push(SearchMatch {
-                    path: Path::new("").to_path_buf(), // Will be set by caller
+                    path: Path::new("").to_path_buf(),
                     line_number,
                     line: line.to_string(),
                     context_before,
@@ -171,7 +171,6 @@ impl SearchAlgorithmTrait for AhoCorasickSearch {
                 let context_before = self.get_context_before(&lines, line_index, context_lines);
                 let context_after = self.get_context_after(&lines, line_index, context_lines);
 
-                // Find which pattern matched
                 let matched_text = self
                     .automaton
                     .find_iter(&text[match_pos..])
@@ -282,13 +281,12 @@ impl SearchAlgorithmTrait for FuzzySearch {
 
         for (i, word) in words.iter().enumerate() {
             if self.levenshtein_distance(word, &self.pattern) <= self.max_distance {
-                // Find the actual position in the text
                 let mut pos = 0;
                 for (j, w) in words.iter().enumerate() {
                     if j == i {
                         break;
                     }
-                    pos += w.len() + 1; // +1 for space
+                    pos += w.len() + 1;
                 }
                 matches.push(pos);
             }
