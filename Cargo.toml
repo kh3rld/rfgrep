@@ -37,7 +37,7 @@ is-terminal = "0.4"
 byte-unit = "5.1.6"
 clap = { version = "4.4", features = ["derive"] }
 colored = "3.0.0"
-dialoguer = "0.11"
+dialoguer = "0.12"
 env_logger = "0.11.8"
 indicatif = { version = "0.18", features = ["improved_unicode"] }
 lazy_static = "1.4"
