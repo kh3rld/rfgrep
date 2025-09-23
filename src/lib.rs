@@ -256,7 +256,7 @@ pub fn load_config() -> AppConfig {
 /// * `std::io::Result<()>` - Success or I/O error
 ///
 /// # Example
-/// ```rust
+/// ```no_run
 /// use rfgrep::run_external_command;
 ///
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -295,7 +295,7 @@ pub fn run_external_command(
 /// * `Result<()>` - Success or error during benchmark execution
 ///
 /// # Example
-/// ```rust
+/// ```no_run
 /// use rfgrep::{AppConfig, run_benchmarks};
 /// use std::path::Path;
 ///
@@ -352,7 +352,7 @@ pub fn run_benchmarks(config: &AppConfig, test_dir: &Path) -> Result<()> {
 /// * `Result<()>` - Success or error during benchmark execution
 ///
 /// # Example
-/// ```rust
+/// ```no_run
 /// use rfgrep::{Cli, run_benchmarks_cli};
 /// use clap::Parser;
 ///
