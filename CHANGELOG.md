@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-09-23
+
+### Added
+- Performance module upgrades:
+  - Atomic metrics (`AtomicPerformanceMetrics`) with thread-safe counters
+  - Timing helpers in `PerformanceMonitor` and `MemoryTracker` stats API
+- Parallel processing:
+  - Adaptive chunking based on CPU cores and memory pressure
+  - Processing stats with memory pressure levels
+- I/O optimizations:
+  - Optimized memory-mapped I/O handler with fallback strategies
+  - Memory pool for `memmap2::Mmap` with eviction and pressure-aware cleanup
+- Zero-copy processing utilities for string/line handling
+- Enhanced benchmarks (Criterion): broader scenarios and stability fixes
+- TUI input modes (Normal/Search/Command) with live editing
+
+### Changed
+- `RfgrepApp` and `TuiApp` initialization made async-friendly; uses existing Tokio runtime when present
+- Updated `ratatui` to 0.29; added `atty` terminal checks
+- Regex cache switched to `Mutex<HashMap<..>>` for simplicity and compatibility
+
+### Fixed
+- Resolved build issues related to `dashmap` dependency removal
+- Addressed clippy warnings across performance and optimized I/O modules
+- Bench harness no longer relies on gated test utilities; portable data generation used
+- Removed snap build from CI workflows to simplify release process
+
+### Performance
+- Faster parallel file processing under load due to adaptive chunking
+- Lower peak memory via pooled mmaps and streaming fallback under pressure
+- Fewer allocations with zero-copy slices along hot paths
+
+### Security
+- Documented allowance for `paste` advisory transitively via `ratatui` (RUSTSEC-2024-0436)
+
+### Docs
+- Expanded crate and module docs (`lib.rs`), new blog posts and performance docs
+
 ## [0.3.0] - 2025-09-15
 
 ### Added
@@ -174,7 +212,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Comprehensive documentation
   - Man pages and shell completions
 
-  [Unreleased]: https://github.com/kh3rld/rfgrep/compare/v0.2.1...HEAD
+  [Unreleased]: https://github.com/kh3rld/rfgrep/compare/v0.3.1...HEAD
+  [0.3.1]: https://github.com/kh3rld/rfgrep/compare/v0.3.0...v0.3.1
+  [0.3.0]: https://github.com/kh3rld/rfgrep/compare/v0.2.1...v0.3.0
   [0.2.1]: https://github.com/kh3rld/rfgrep/compare/v0.2.0...v0.2.1
   [0.2.0]: https://github.com/kh3rld/rfgrep/compare/v0.1.0...v0.2.0
   [0.1.0]: https://github.com/kh3rld/rfgrep/releases/tag/v0.1.0
