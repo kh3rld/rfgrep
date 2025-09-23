@@ -39,6 +39,9 @@ pub struct TuiState {
     pub status_message: String,
     pub search_in_progress: bool,
     pub scroll_offset: usize,
+    pub input_mode: InputMode,
+    pub input_buffer: String,
+    pub input_cursor: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,6 +49,13 @@ pub enum SearchMode {
     Text,
     Word,
     Regex,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum InputMode {
+    Normal,
+    Search,
+    Command,
 }
 
 impl Default for TuiState {
@@ -64,6 +74,9 @@ impl Default for TuiState {
             status_message: "Ready".to_string(),
             search_in_progress: false,
             scroll_offset: 0,
+            input_mode: InputMode::Normal,
+            input_buffer: String::new(),
+            input_cursor: 0,
         }
     }
 }
@@ -80,15 +93,11 @@ pub struct TuiApp {
 }
 
 impl TuiApp {
-    pub fn new() -> RfgrepResult<Self> {
+    pub async fn new() -> RfgrepResult<Self> {
         let plugin_manager = Arc::new(EnhancedPluginManager::new());
         let registry = PluginRegistry::new(plugin_manager.clone());
 
-        // Initialize plugins
-        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            crate::error::RfgrepError::Other(format!("Failed to create runtime: {e}"))
-        })?;
-        rt.block_on(async { registry.load_plugins().await })?;
+        registry.load_plugins().await?;
 
         let mut list_state = ListState::default();
         list_state.select(Some(0));
@@ -127,8 +136,8 @@ impl TuiApp {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Header
-                Constraint::Min(0),    // Main content
+                Constraint::Length(3),
+                Constraint::Min(0),
                 Constraint::Length(3), // Status bar
             ])
             .split(f.area());
@@ -143,7 +152,9 @@ impl TuiApp {
     }
 
     fn render_header(&self, f: &mut Frame, area: Rect) {
-        let header_text = if self.state.search_in_progress {
+        let header_text = if self.state.input_mode == InputMode::Search {
+            format!("rfgrep TUI - Search: {}_", self.state.input_buffer)
+        } else if self.state.search_in_progress {
             format!("rfgrep TUI - Searching for: '{}'...", self.state.pattern)
         } else {
             format!("rfgrep TUI - Pattern: '{}'", self.state.pattern)
@@ -256,7 +267,6 @@ impl TuiApp {
 
         f.render_stateful_widget(table, area, &mut self.table_state);
 
-        // Render scrollbar
         if matches.len() > (area.height as usize).saturating_sub(2) {
             let scrollbar = Scrollbar::default()
                 .orientation(ScrollbarOrientation::VerticalRight)
@@ -310,10 +320,17 @@ impl TuiApp {
             "  Page Up/Dn  - Scroll matches",
             "",
             "Search:",
-            "  /           - Enter search mode",
+            "  /           - Enter search input mode",
             "  n           - Next match",
             "  N           - Previous match",
             "  Enter       - Open file in editor",
+            "",
+            "Search Input Mode:",
+            "  Type pattern - Enter search pattern",
+            "  Enter       - Execute search",
+            "  Esc         - Cancel search",
+            "  ←/→         - Move cursor",
+            "  Home/End    - Jump to start/end",
             "",
             "Settings:",
             "  c           - Toggle case sensitivity",
@@ -344,6 +361,11 @@ impl TuiApp {
                 self.state.show_help = false;
             }
             return Ok(false);
+        }
+
+        // Handle input modes
+        if self.state.input_mode != InputMode::Normal {
+            return self.handle_input_mode(key).await;
         }
 
         match key.code {
@@ -390,8 +412,7 @@ impl TuiApp {
                 self.refresh_search().await?;
             }
             KeyCode::Char('/') => {
-                // TODO: Implement search input mode
-                self.state.status_message = "Search input mode not yet implemented".to_string();
+                self.enter_search_input_mode();
             }
             KeyCode::Enter => {
                 self.open_current_file();
@@ -508,7 +529,7 @@ impl TuiApp {
         if let Some(current_match) = self.state.matches.get(self.state.current_match_index) {
             self.state.status_message = format!("Opening: {}", current_match.path.display());
             let path = &current_match.path;
-            // Try $EDITOR if set, otherwise fall back to platform default opener
+
             let editor = std::env::var("EDITOR").ok();
             let result = if let Some(ed) = editor {
                 std::process::Command::new(ed).arg(path).spawn()
@@ -536,7 +557,6 @@ impl TuiApp {
         self.state.search_in_progress = true;
         self.state.status_message = "Searching...".to_string();
 
-        // Perform actual search using the plugin manager across current directory recursively
         use crate::walker::walk_dir;
         use std::path::Path;
 
@@ -544,7 +564,6 @@ impl TuiApp {
         let mut all_matches: Vec<SearchMatch> = Vec::new();
         let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
-        // Walk files and search
         let entries: Vec<_> = walk_dir(Path::new(&cwd), true, false).collect();
         for entry in entries {
             let path = entry.path();
@@ -574,7 +593,6 @@ impl TuiApp {
         self.state.current_file_index = 0;
         self.state.scroll_offset = 0;
 
-        // Extract unique files
         let mut files = std::collections::HashSet::new();
         for m in &self.state.matches {
             files.insert(m.path.to_string_lossy().to_string());
@@ -582,9 +600,114 @@ impl TuiApp {
         self.state.files = files.into_iter().collect();
         self.state.files.sort();
     }
+
+    /// Enter search input mode
+    fn enter_search_input_mode(&mut self) {
+        self.state.input_mode = InputMode::Search;
+        self.state.input_buffer = self.state.pattern.clone();
+        self.state.input_cursor = self.state.input_buffer.len();
+        self.state.status_message =
+            "Enter search pattern (Enter to search, Esc to cancel)".to_string();
+    }
+
+    /// Handle input mode key events
+    async fn handle_input_mode(&mut self, key: KeyEvent) -> RfgrepResult<bool> {
+        match self.state.input_mode {
+            InputMode::Search => self.handle_search_input(key).await,
+            InputMode::Command => self.handle_command_input(key).await,
+            InputMode::Normal => Ok(false),
+        }
+    }
+
+    /// Handle search input mode
+    async fn handle_search_input(&mut self, key: KeyEvent) -> RfgrepResult<bool> {
+        match key.code {
+            KeyCode::Enter => {
+                // Apply the search
+                self.state.pattern = self.state.input_buffer.clone();
+                self.state.input_mode = InputMode::Normal;
+                self.state.input_buffer.clear();
+                self.state.input_cursor = 0;
+                self.state.status_message = "Searching...".to_string();
+                self.refresh_search().await?;
+                Ok(false)
+            }
+            KeyCode::Esc => {
+                // Cancel search input
+                self.state.input_mode = InputMode::Normal;
+                self.state.input_buffer.clear();
+                self.state.input_cursor = 0;
+                self.state.status_message = "Search cancelled".to_string();
+                Ok(false)
+            }
+            KeyCode::Backspace => {
+                if self.state.input_cursor > 0 {
+                    self.state.input_cursor -= 1;
+                    self.state.input_buffer.remove(self.state.input_cursor);
+                }
+                Ok(false)
+            }
+            KeyCode::Delete => {
+                if self.state.input_cursor < self.state.input_buffer.len() {
+                    self.state.input_buffer.remove(self.state.input_cursor);
+                }
+                Ok(false)
+            }
+            KeyCode::Left => {
+                if self.state.input_cursor > 0 {
+                    self.state.input_cursor -= 1;
+                }
+                Ok(false)
+            }
+            KeyCode::Right => {
+                if self.state.input_cursor < self.state.input_buffer.len() {
+                    self.state.input_cursor += 1;
+                }
+                Ok(false)
+            }
+            KeyCode::Home => {
+                self.state.input_cursor = 0;
+                Ok(false)
+            }
+            KeyCode::End => {
+                self.state.input_cursor = self.state.input_buffer.len();
+                Ok(false)
+            }
+            KeyCode::Char(c) => {
+                self.state.input_buffer.insert(self.state.input_cursor, c);
+                self.state.input_cursor += 1;
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// Handle command input mode (for future use)
+    async fn handle_command_input(&mut self, key: KeyEvent) -> RfgrepResult<bool> {
+        match key.code {
+            KeyCode::Enter => {
+                // Process command
+                self.state.input_mode = InputMode::Normal;
+                self.state.input_buffer.clear();
+                self.state.input_cursor = 0;
+                self.state.status_message = "Command processed".to_string();
+                Ok(false)
+            }
+            KeyCode::Esc => {
+                self.state.input_mode = InputMode::Normal;
+                self.state.input_buffer.clear();
+                self.state.input_cursor = 0;
+                self.state.status_message = "Command cancelled".to_string();
+                Ok(false)
+            }
+            _ => {
+                // Handle other keys similar to search input
+                self.handle_search_input(key).await
+            }
+        }
+    }
 }
 
-/// Helper function to create a centered rectangle
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
@@ -605,8 +728,21 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
-/// Initialize the TUI
 pub fn init_terminal() -> RfgrepResult<Terminal<CrosstermBackend<Stdout>>> {
+    if !atty::is(atty::Stream::Stdout) {
+        return Err(crate::error::RfgrepError::Io(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "TUI requires an interactive terminal. Please run in a proper terminal environment.",
+        )));
+    }
+
+    if std::env::var("TERM").is_err() {
+        return Err(crate::error::RfgrepError::Io(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "TUI requires a proper terminal environment. TERM environment variable not set.",
+        )));
+    }
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -615,7 +751,6 @@ pub fn init_terminal() -> RfgrepResult<Terminal<CrosstermBackend<Stdout>>> {
     Ok(terminal)
 }
 
-/// Restore the terminal
 pub fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> RfgrepResult<()> {
     disable_raw_mode()?;
     execute!(
