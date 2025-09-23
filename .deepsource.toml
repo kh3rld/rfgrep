@@ -1,0 +1,27 @@
+version = 1
+
+test_patterns = [
+	"tests/**",
+	"benches/**",
+	"examples/**",
+]
+
+exclude_patterns = [
+	"target/**",
+	"**/target/**",
+	"docs/**",
+	"man/**",
+	".git/**",
+]
+
+[[analyzers]]
+name = "rust"
+enabled = true
+
+[[analyzers]]
+name = "secrets"
+enabled = true
+
+[[transformers]]
+name = "rustfmt"
+enabled = true
