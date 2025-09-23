@@ -1,11 +1,11 @@
 [package]
 name = "rfgrep"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "Advanced recursive file grep utility with comprehensive file type classification - search, list, and analyze 153+ file formats with intelligent filtering and safety policies"
 homepage = "https://github.com/kh3rld/rfgrep"
 license = "BSD-3-Clause" 
-authors = ["Khalid Hussein <kh3rld.hussein@gmail.com>"]
+authors = ["Khalid Hussein <kherld.hussein@gmail.com>"]
 repository = "https://github.com/kh3rld/rfgrep"
 documentation = "https://docs.rs/rfgrep"
 readme = "README.md"
