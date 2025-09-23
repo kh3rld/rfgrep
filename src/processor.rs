@@ -2,17 +2,17 @@
 //! File-level search helpers and match extraction used by the rfgrep core.
 use crate::error::{Result as RfgrepResult, RfgrepError};
 use crate::file_types::{FileTypeClassifier, SearchDecision};
-// infer is used via `infer::get_from_path` when needed; no top-level import required here
-use dashmap::DashMap;
 use lazy_static::lazy_static;
 use log::{debug, info, warn};
 use memmap2::Mmap;
 use regex::Regex;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::fs::Metadata;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
+use std::sync::Mutex;
 use std::time::Instant;
 
 const CONTEXT_LINES: usize = 2;
@@ -32,7 +32,6 @@ fn get_adaptive_mmap_threshold() -> u64 {
             {
                 if let Some(kb_str) = available_line.split_whitespace().nth(1) {
                     if let Ok(kb) = kb_str.parse::<u64>() {
-                        // Use 1/8 of available memory, but cap at 1GB
                         let threshold = (kb * 1024 / 8).min(1024 * 1024 * 1024);
                         return threshold.max(MMAP_THRESHOLD);
                     }
@@ -41,7 +40,6 @@ fn get_adaptive_mmap_threshold() -> u64 {
         }
     }
 
-    // Fallback to default threshold
     MMAP_THRESHOLD
 }
 
@@ -60,7 +58,7 @@ pub struct SearchMatch {
 }
 
 lazy_static! {
-    static ref REGEX_CACHE: DashMap<String, Regex> = DashMap::new();
+    static ref REGEX_CACHE: Mutex<HashMap<String, Regex>> = Mutex::new(HashMap::new());
 }
 
 pub fn is_binary(file: &Path) -> bool {
@@ -79,7 +77,6 @@ pub fn is_binary(file: &Path) -> bool {
         let mut buffer = vec![0u8; BINARY_CHECK_SIZE];
         match f.read(&mut buffer) {
             Ok(n) if n > 0 => {
-                // Check for UTF-16 BOMs first
                 if n >= 2 {
                     let bom_utf16_le = &buffer[0..2] == b"\xff\xfe";
                     let bom_utf16_be = &buffer[0..2] == b"\xfe\xff";
@@ -89,24 +86,20 @@ pub fn is_binary(file: &Path) -> bool {
                     }
                 }
 
-                // Check for UTF-8 BOM
                 if n >= 3 && &buffer[0..3] == b"\xef\xbb\xbf" {
                     debug!("UTF-8 BOM detected, treating as text: {}", file.display());
                     return false;
                 }
 
-                // Check for UTF-16 patterns (alternating null bytes)
                 if n >= 4 {
                     let mut utf16_likely = true;
                     let mut utf16_be_likely = true;
 
                     for i in (0..n - 1).step_by(2) {
                         if i + 1 < n {
-                            // UTF-16 LE: low byte first, high byte second
                             if buffer[i] != 0 && buffer[i + 1] == 0 {
                                 utf16_likely = false;
                             }
-                            // UTF-16 BE: high byte first, low byte second
                             if buffer[i] == 0 && buffer[i + 1] != 0 {
                                 utf16_be_likely = false;
                             }
@@ -122,7 +115,6 @@ pub fn is_binary(file: &Path) -> bool {
                     }
                 }
 
-                // Original null byte heuristic
                 let null_bytes = buffer[..n].iter().filter(|&&b| b == 0).count();
                 let binary_threshold = (n as f64 * 0.1).max(1.0);
                 if (null_bytes as f64) > binary_threshold {
@@ -145,12 +137,10 @@ pub fn is_binary(file: &Path) -> bool {
 /// Decide whether a file should be skipped entirely before attempting to read/scan it.
 /// Uses smart file type classification with extension, MIME, and size analysis.
 pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
-    // Skip directories (caller should avoid passing directories, but be defensive)
     if metadata.is_dir() {
         return true;
     }
 
-    // Skip kernel pseudo-filesystems like /proc and device nodes under /dev by default
     if let Ok(s) = path.canonicalize() {
         if let Some(root_str) = s.to_str() {
             if root_str.starts_with("/proc") || root_str.starts_with("/dev") {
@@ -160,7 +150,6 @@ pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
         }
     }
 
-    // Skip special file types (sockets, pipes, block/char devices)
     let ftype = metadata.file_type();
     #[cfg(unix)]
     {
@@ -183,16 +172,15 @@ pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
         }
     }
 
-    // Use smart file type classification
     let classifier = FileTypeClassifier::new();
     match classifier.should_search(path, metadata) {
         SearchDecision::Search(_) => {
             debug!("Searching file: {}", path.display());
-            false // Don't skip
+            false
         }
         SearchDecision::Skip(reason) => {
             debug!("Skipping file: {} - {}", path.display(), reason);
-            true // Skip
+            true
         }
         SearchDecision::Conditional(mode, reason) => {
             debug!(
@@ -201,7 +189,7 @@ pub fn should_skip(path: &Path, metadata: &Metadata) -> bool {
                 reason,
                 mode
             );
-            false // Don't skip, but use special handling
+            false
         }
     }
 }
@@ -216,13 +204,14 @@ fn is_binary_content(data: &[u8]) -> bool {
 }
 
 pub fn get_or_compile_regex(pattern: &str) -> RfgrepResult<Regex> {
-    if let Some(regex) = REGEX_CACHE.get(pattern) {
+    let mut cache = REGEX_CACHE.lock().unwrap();
+    if let Some(regex) = cache.get(pattern) {
         debug!("Regex cache hit for pattern: {pattern}");
         Ok(regex.clone())
     } else {
         debug!("Regex cache miss for pattern: {pattern}. Compiling.");
         let regex = Regex::new(pattern).map_err(RfgrepError::Regex)?;
-        REGEX_CACHE.insert(pattern.to_string(), regex.clone());
+        cache.insert(pattern.to_string(), regex.clone());
         Ok(regex)
     }
 }
@@ -235,7 +224,6 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<SearchMatch
     let metadata = file.metadata().map_err(RfgrepError::Io)?;
     let file_size = metadata.len();
 
-    // Quick heuristic to skip problematic files before trying to mmap/read them.
     if should_skip(path, &metadata) {
         info!("Skipping file by pre-scan heuristic: {file_display}");
         return Ok(vec![]);
@@ -250,7 +238,6 @@ pub fn search_file(path: &Path, pattern: &Regex) -> RfgrepResult<Vec<SearchMatch
                     info!("Skipping binary file (mmap): {file_display}");
                     return Ok(vec![]);
                 }
-                // SAFETY: Validate UTF-8 before conversion
                 match std::str::from_utf8(&mmap) {
                     Ok(content) => find_matches_with_context(content.to_string(), pattern, path)?,
                     Err(e) => {

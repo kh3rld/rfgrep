@@ -51,7 +51,6 @@ fn main() {
 fn main_inner() -> RfgrepResult<()> {
     #[cfg(unix)]
     {
-        // Set up signal handlers for graceful shutdown
         let shutdown_flag = &SHUTDOWN_REQUESTED;
         ctrlc::set_handler(move || {
             shutdown_flag.store(true, AtomicOrdering::SeqCst);
@@ -61,22 +60,21 @@ fn main_inner() -> RfgrepResult<()> {
     }
 
     let cli = Cli::parse();
-    // Temporarily disable logging to test
     // setup_logging(&cli)?;
 
     let start_time = Instant::now();
 
-    // Check if we should suppress verbose output for JSON format
     let suppress_verbose = matches!(&cli.command, Commands::Search { output_format, .. } if output_format == &cli::OutputFormat::Json);
 
     if !suppress_verbose {
         println!("Application started with command: {:?}", cli.command);
     }
 
-    // Create and run the application
-    let app = app_simple::RfgrepApp::new()?;
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(app.run(cli))?;
+    rt.block_on(async {
+        let app = app_simple::RfgrepApp::new_async().await?;
+        app.run(cli).await
+    })?;
 
     if !suppress_verbose {
         println!(

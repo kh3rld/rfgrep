@@ -27,21 +27,39 @@ impl RfgrepApp {
         let plugin_manager = Arc::new(EnhancedPluginManager::new());
         let registry = PluginRegistry::new(plugin_manager.clone());
 
-        // Initialize plugins synchronously for now
-        // TODO: Make this async when we have proper async runtime setup
-        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            crate::error::RfgrepError::Other(format!("Failed to create runtime: {}", e))
-        })?;
+        // Use the existing tokio runtime if available, otherwise create a new one
+        let rt = match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                // We're already in an async context, use the current runtime
+                handle.block_on(async { registry.load_plugins().await })?;
+                return Ok(Self { plugin_manager });
+            }
+            Err(_) => {
+                // No current runtime, create a new one
+                tokio::runtime::Runtime::new().map_err(|e| {
+                    crate::error::RfgrepError::Other(format!("Failed to create runtime: {}", e))
+                })?
+            }
+        };
+
         rt.block_on(async { registry.load_plugins().await })?;
+        Ok(Self { plugin_manager })
+    }
+
+    /// Create a new application instance with async support
+    pub async fn new_async() -> RfgrepResult<Self> {
+        let plugin_manager = Arc::new(EnhancedPluginManager::new());
+        let registry = PluginRegistry::new(plugin_manager.clone());
+
+        // Load plugins asynchronously
+        registry.load_plugins().await?;
 
         Ok(Self { plugin_manager })
     }
 
     /// Run the application with the given CLI arguments
     pub async fn run(&self, cli: Cli) -> RfgrepResult<()> {
-        // Handle logging if specified
         if let Some(log_path) = &cli.log {
-            // Create log file
             std::fs::write(log_path, "rfgrep log file created\n").map_err(RfgrepError::Io)?;
         }
 
@@ -139,7 +157,6 @@ impl RfgrepApp {
             }
             Commands::Completions { shell } => self.handle_completions(*shell),
             Commands::Simulate {} => {
-                // Lightweight built-in simulations: run a few searches and time them
                 use std::fs;
                 use std::time::Instant;
                 let results_dir = cli.path.join("results");
@@ -147,7 +164,6 @@ impl RfgrepApp {
                     return Err(RfgrepError::Io(e));
                 }
 
-                // Prefer bench_data, fallback to current directory, ensure it exists
                 let search_root = cli.path.join("bench_data");
                 let search_root = if search_root.exists() {
                     search_root
@@ -155,7 +171,6 @@ impl RfgrepApp {
                     cli.path.clone()
                 };
 
-                // Check if search root has any files
                 let entries: Vec<_> = crate::walker::walk_dir(&search_root, true, true).collect();
                 let files: Vec<_> = entries
                     .into_iter()
@@ -170,12 +185,10 @@ impl RfgrepApp {
                     );
                     println!("Creating a small test file for simulation...");
 
-                    // Create a minimal test file
                     let test_file = search_root.join("test_simulation.txt");
                     let test_content = "This is a test file for simulation.\nIt contains some error messages.\nTODO: Add more test cases.\nThe quick brown fox jumps over the lazy dog.\n";
                     fs::write(&test_file, test_content).map_err(RfgrepError::Io)?;
 
-                    // Re-scan for files
                     let entries: Vec<_> =
                         crate::walker::walk_dir(&search_root, true, true).collect();
                     let files: Vec<_> = entries
@@ -209,7 +222,6 @@ impl RfgrepApp {
                     let mut total = 0usize;
                     let mut files_processed = 0usize;
 
-                    // compile regex via processor cache
                     let regex = crate::processor::get_or_compile_regex(&pat)?;
                     for f in &files {
                         if let Ok(matches) = crate::processor::search_file(f, &regex) {
@@ -224,7 +236,6 @@ impl RfgrepApp {
                     ));
                 }
 
-                // Write report
                 let report_path = results_dir.join("simulations.csv");
                 fs::write(&report_path, &report).map_err(RfgrepError::Io)?;
                 println!("Simulations complete. Report: {}", report_path.display());
@@ -277,23 +288,18 @@ impl RfgrepApp {
         safety_policy: crate::cli::SafetyPolicy,
         threads: Option<usize>,
     ) -> RfgrepResult<()> {
-        // Note: Root check would need to be passed as parameter
-
-        // Convert CLI algorithm to internal algorithm
         let search_algorithm = match algorithm {
             CliSearchAlgorithm::BoyerMoore => SearchAlgorithm::BoyerMoore,
             CliSearchAlgorithm::Regex => SearchAlgorithm::Regex,
             CliSearchAlgorithm::Simple => SearchAlgorithm::Simple,
         };
 
-        // Build search pattern based on mode
         let search_pattern = match mode {
             crate::cli::SearchMode::Text => pattern.to_string(),
             crate::cli::SearchMode::Word => format!(r"\b{}\b", regex::escape(pattern)),
             crate::cli::SearchMode::Regex => pattern.to_string(),
         };
 
-        // Discover files to search
         let entries: Vec<_> = walk_dir(search_path, recursive, true).collect();
         let files: Vec<_> = entries
             .into_iter()
@@ -301,7 +307,6 @@ impl RfgrepApp {
             .map(|entry| entry.path().to_path_buf())
             .collect();
 
-        // Filter files using smart file type classification with CLI options
         let filtered_files: Vec<_> = files
             .into_iter()
             .filter(|path| {
@@ -312,37 +317,29 @@ impl RfgrepApp {
                         .map(|s| s.to_ascii_lowercase())
                         .unwrap_or_default();
 
-                    // Handle --skip-binary flag first
                     if _skip_binary && crate::processor::is_binary(path) {
                         return false;
                     }
 
-                    // Apply safety policy
                     match safety_policy {
                         crate::cli::SafetyPolicy::Conservative => {
-                            // Conservative: strict size limits and file type checking
                             let file_size = metadata.len();
                             if file_size > 10 * 1024 * 1024 {
-                                // 10MB limit
                                 return false;
                             }
-                            // Only allow known safe text files
+
                             let classifier = FileTypeClassifier::new();
                             if !classifier.is_always_search(&ext) {
                                 return false;
                             }
                         }
                         crate::cli::SafetyPolicy::Performance => {
-                            // Performance: relaxed limits for speed
                             let file_size = metadata.len();
                             if file_size > 500 * 1024 * 1024 {
-                                // 500MB limit
                                 return false;
                             }
                         }
-                        crate::cli::SafetyPolicy::Default => {
-                            // Default: use existing logic
-                        }
+                        crate::cli::SafetyPolicy::Default => {}
                     }
 
                     // Handle CLI overrides first
@@ -358,32 +355,26 @@ impl RfgrepApp {
                         }
                     }
 
-                    // Handle strategy-based filtering
                     let should_search = match (search_all_files, text_only, file_types.clone()) {
-                        (true, _, _) => true, // Search all files
+                        (true, _, _) => true,
                         (_, true, _) => {
-                            // Only text files
                             let classifier = FileTypeClassifier::new();
                             classifier.is_always_search(&ext)
                         }
                         (_, _, crate::cli::FileTypeStrategy::Comprehensive) => {
-                            // Comprehensive - search everything possible
                             let classifier = FileTypeClassifier::new();
                             !classifier.is_never_search(&ext)
                         }
                         (_, _, crate::cli::FileTypeStrategy::Conservative) => {
-                            // Conservative - only safe text files
                             let classifier = FileTypeClassifier::new();
                             classifier.is_always_search(&ext)
                         }
                         (_, _, crate::cli::FileTypeStrategy::Performance) => {
-                            // Performance - skip potentially problematic files
                             let classifier = FileTypeClassifier::new();
                             classifier.is_always_search(&ext)
                                 || classifier.is_conditional_search(&ext)
                         }
                         (_, _, crate::cli::FileTypeStrategy::Default) => {
-                            // Default - use smart classification
                             let classifier = FileTypeClassifier::new();
                             match classifier.should_search(path, &metadata) {
                                 SearchDecision::Search(_) => true,
@@ -397,7 +388,6 @@ impl RfgrepApp {
                         return false;
                     }
 
-                    // Additional size filter if specified
                     if let Some(max_size) = max_size {
                         let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
                         if size_mb > max_size as f64 {
@@ -412,12 +402,10 @@ impl RfgrepApp {
             })
             .collect();
 
-        // Only print verbose output for text format, not for JSON/structured formats
         if output_format != crate::cli::OutputFormat::Json {
             println!("Searching {} files...", filtered_files.len());
         }
 
-        // Create streaming search configuration
         let config = StreamingConfig {
             algorithm: search_algorithm,
             context_lines,
@@ -429,27 +417,17 @@ impl RfgrepApp {
             buffer_size: 65536,
         };
 
-        // Configure thread pool if specified
-        let _thread_count = threads.unwrap_or_else(|| {
-            // Default to number of CPU cores
-            num_cpus::get().min(8) // Cap at 8 threads
-        });
-
-        // TODO: Use thread_count for parallel processing in streaming pipeline
+        let _thread_count = threads.unwrap_or_else(|| num_cpus::get().min(8));
 
         let pipeline = StreamingSearchPipeline::new(config);
 
-        // Convert file paths to references for parallel search
         let file_refs: Vec<&Path> = filtered_files.iter().map(|p| p.as_path()).collect();
 
-        // Use streaming search pipeline for better performance
         let all_matches = if file_refs.len() > 10 {
-            // Use parallel search for many files
             pipeline
                 .search_files_parallel(&file_refs, &search_pattern, 4)
                 .await?
         } else {
-            // Use sequential search for few files
             let mut all_matches = Vec::new();
             for file in &filtered_files {
                 match pipeline.search_file(file, &search_pattern).await {
@@ -462,7 +440,6 @@ impl RfgrepApp {
             all_matches
         };
 
-        // Display results
         if all_matches.is_empty() {
             if output_format != crate::cli::OutputFormat::Json {
                 println!("{}", "No matches found".yellow());
@@ -504,7 +481,6 @@ impl RfgrepApp {
     }
 
     async fn handle_worker(&self, path: &std::path::Path, pattern: &str) -> RfgrepResult<()> {
-        // Worker mode: perform a search on a single file and print NDJSON lines to stdout
         if let Ok(s) = std::env::var("RFGREP_WORKER_SLEEP") {
             if let Ok(sec) = s.parse::<u64>() {
                 std::thread::sleep(std::time::Duration::from_secs(sec));
@@ -553,16 +529,13 @@ impl RfgrepApp {
         context_lines: usize,
         _path: &str,
     ) -> RfgrepResult<()> {
-        // Initialize TUI
         let mut terminal = init_terminal()?;
-        let mut app = TuiApp::new()?;
+        let mut app = TuiApp::new().await?;
 
-        // Set initial pattern if provided
         if let Some(p) = pattern {
             app.set_pattern(p.to_string());
         }
 
-        // Convert CLI types to TUI types
         let tui_algorithm = match algorithm {
             CliSearchAlgorithm::BoyerMoore => SearchAlgorithm::BoyerMoore,
             CliSearchAlgorithm::Regex => SearchAlgorithm::Regex,
@@ -575,13 +548,11 @@ impl RfgrepApp {
             SearchMode::Regex => crate::tui::SearchMode::Regex,
         };
 
-        // Set TUI state
         app.state.algorithm = tui_algorithm;
         app.state.case_sensitive = case_sensitive;
         app.state.context_lines = context_lines;
         app.state.search_mode = tui_mode;
 
-        // If pattern is provided, perform initial search using plugin manager
         if let Some(p) = pattern {
             app.state.status_message = format!("Searching for: {}", p);
             let mut all_matches = Vec::new();
@@ -603,10 +574,8 @@ impl RfgrepApp {
             app.set_matches(all_matches);
         }
 
-        // Run TUI
         let result = app.run(&mut terminal).await;
 
-        // Restore terminal
         restore_terminal(&mut terminal)?;
 
         result
@@ -634,7 +603,6 @@ impl RfgrepApp {
     ) -> RfgrepResult<()> {
         let search_path = cmd_path_flag.or(cmd_path).unwrap_or(default_path);
 
-        // Discover files
         let entries: Vec<_> = walk_dir(search_path, recursive, show_hidden).collect();
         let mut files: Vec<_> = entries
             .into_iter()
@@ -642,9 +610,7 @@ impl RfgrepApp {
             .map(|entry| entry.path().to_path_buf())
             .collect();
 
-        // Apply filters
         files.retain(|path| {
-            // Extension filter
             if let Some(exts) = extensions {
                 if let Some(ext) = path.extension() {
                     if let Some(ext_str) = ext.to_str() {
@@ -655,7 +621,6 @@ impl RfgrepApp {
                 }
             }
 
-            // Size filters
             if let Ok(metadata) = path.metadata() {
                 let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
                 if let Some(max) = max_size {
@@ -673,7 +638,6 @@ impl RfgrepApp {
             true
         });
 
-        // Sort files
         match sort {
             crate::cli::SortCriteria::Name => {
                 files.sort_by(|a, b| a.file_name().cmp(&b.file_name()))
@@ -714,12 +678,10 @@ impl RfgrepApp {
             files.reverse();
         }
 
-        // Apply limit
         if let Some(limit) = limit {
             files.truncate(limit);
         }
 
-        // Output files
         if stats {
             println!("Summary: {} files found", files.len());
         } else if simple {
@@ -748,10 +710,8 @@ impl RfgrepApp {
                     println!("{}", file.display());
                 }
             }
-            // Always output summary for basic list command
             println!("Summary: {} files found", files.len());
 
-            // If long format, also output extension summary
             if long {
                 let mut extensions: std::collections::HashMap<String, usize> =
                     std::collections::HashMap::new();

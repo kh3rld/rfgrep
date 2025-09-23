@@ -16,6 +16,9 @@ pub enum RfgrepError {
     #[error("Walkdir error: {0}")]
     Walkdir(#[from] walkdir::Error),
 
+    #[error("Plugin loading error: {0}")]
+    PluginLoading(#[from] libloading::Error),
+
     #[error("Memory map error: {0}")]
     #[allow(dead_code)]
     Mmap(io::Error),
