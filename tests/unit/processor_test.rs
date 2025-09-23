@@ -278,6 +278,7 @@ mod error_handling_tests {
     #[test]
     fn test_invalid_regex() {
         // This test is for the regex creation, not the search function
+        // deepsource-ignore RS-E1002: Intentionally invalid regex to verify error handling
         let result = Regex::new("[invalid regex");
         assert!(result.is_err());
     }

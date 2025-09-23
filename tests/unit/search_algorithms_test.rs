@@ -87,6 +87,7 @@ mod regex_tests {
 
     #[test]
     fn test_invalid_regex() {
+        // deepsource-ignore RS-E1002: Intentionally invalid regex to verify error handling
         let result = RegexSearch::new("[invalid regex");
         assert!(result.is_err());
     }
