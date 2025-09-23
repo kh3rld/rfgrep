@@ -7,6 +7,11 @@ A command-line utility for recursively searching and listing files with advanced
 [![CI](https://github.com/kh3rld/rfgrep/actions/workflows/ci.yml/badge.svg)](https://github.com/kh3rld/rfgrep/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/kh3rld/rfgrep)](https://github.com/kh3rld/rfgrep/blob/main/LICENSE)
 
+[![DeepSource](https://app.deepsource.com/gh/kh3rld/rfgrep.svg/?label=active+issues&show_trend=true)](https://app.deepsource.com/gh/kh3rld/rfgrep/)
+
+
+[![Get it from the Snap Store](https://snapcraft.io/en/dark/install.svg)](https://snapcraft.io/rfgrep)
+
 ## Features
 
 - **Advanced Search**
