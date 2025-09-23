@@ -70,7 +70,7 @@ ctrlc = "3.4"
 memchr = "2.7"
 aho-corasick = "1.1"
 serde_yaml = "0.9"
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = "0.28"
 atty = "0.2"
 rand = { version = "0.9", optional = true }
