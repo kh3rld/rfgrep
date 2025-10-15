@@ -1,6 +1,6 @@
 [package]
 name = "rfgrep"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 description = "Advanced recursive file grep utility with comprehensive file type classification - search, list, and analyze 153+ file formats with intelligent filtering and safety policies"
 homepage = "https://github.com/kh3rld/rfgrep"
@@ -70,7 +70,7 @@ ctrlc = "3.4"
 memchr = "2.7"
 aho-corasick = "1.1"
 serde_yaml = "0.9"
-ratatui = "0.30"
+ratatui = "0.29"
 crossterm = "0.28"
 atty = "0.2"
 rand = { version = "0.9", optional = true }
