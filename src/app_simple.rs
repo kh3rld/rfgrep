@@ -63,6 +63,9 @@ impl RfgrepApp {
             std::fs::write(log_path, "rfgrep log file created\n").map_err(RfgrepError::Io)?;
         }
 
+        let is_piped = !is_terminal::is_terminal(&std::io::stdout());
+        let quiet = cli.quiet || is_piped;
+
         match &cli.command {
             Commands::Search {
                 pattern,
@@ -82,6 +85,9 @@ impl RfgrepApp {
                 exclude_extensions,
                 search_all_files,
                 text_only,
+                ndjson,
+                count,
+                files_with_matches,
                 ..
             } => {
                 self.handle_search(
@@ -109,6 +115,10 @@ impl RfgrepApp {
                     *text_only,
                     cli.safety_policy.clone(),
                     cli.threads,
+                    *ndjson,
+                    *count,
+                    *files_with_matches,
+                    quiet,
                 )
                 .await
             }
@@ -287,6 +297,10 @@ impl RfgrepApp {
         text_only: bool,
         safety_policy: crate::cli::SafetyPolicy,
         threads: Option<usize>,
+        ndjson: bool,
+        count: bool,
+        files_with_matches: bool,
+        quiet: bool,
     ) -> RfgrepResult<()> {
         let search_algorithm = match algorithm {
             CliSearchAlgorithm::BoyerMoore => SearchAlgorithm::BoyerMoore,
@@ -402,7 +416,7 @@ impl RfgrepApp {
             })
             .collect();
 
-        if output_format != crate::cli::OutputFormat::Json {
+        if !quiet && output_format != crate::cli::OutputFormat::Json && !ndjson {
             println!("Searching {} files...", filtered_files.len());
         }
 
@@ -441,11 +455,28 @@ impl RfgrepApp {
         };
 
         if all_matches.is_empty() {
-            if output_format != crate::cli::OutputFormat::Json {
+            if count {
+                println!("0");
+            } else if files_with_matches {
+                // Print nothing
+            } else if output_format != crate::cli::OutputFormat::Json {
                 println!("{}", "No matches found".yellow());
             }
+        } else if count {
+            println!("{}", all_matches.len());
+        } else if files_with_matches {
+            use std::collections::HashSet;
+            let mut unique_files: HashSet<String> = HashSet::new();
+            for m in &all_matches {
+                unique_files.insert(m.path.to_string_lossy().to_string());
+            }
+            let mut files: Vec<_> = unique_files.into_iter().collect();
+            files.sort();
+            for file in files {
+                println!("{}", file);
+            }
         } else {
-            if output_format != crate::cli::OutputFormat::Json {
+            if !quiet && output_format != crate::cli::OutputFormat::Json && !ndjson {
                 println!(
                     "\n{} {} {}",
                     "Found".green(),
@@ -454,16 +485,25 @@ impl RfgrepApp {
                 );
             }
 
-            let formatter = OutputFormatter::new(match output_format {
-                crate::cli::OutputFormat::Text => crate::output_formats::OutputFormat::Text,
-                crate::cli::OutputFormat::Json => crate::output_formats::OutputFormat::Json,
-                crate::cli::OutputFormat::Xml => crate::output_formats::OutputFormat::Xml,
-                crate::cli::OutputFormat::Html => crate::output_formats::OutputFormat::Html,
-                crate::cli::OutputFormat::Markdown => crate::output_formats::OutputFormat::Markdown,
-            });
+            let formatter = OutputFormatter::new(if ndjson {
+                crate::output_formats::OutputFormat::Json
+            } else {
+                match output_format {
+                    crate::cli::OutputFormat::Text => crate::output_formats::OutputFormat::Text,
+                    crate::cli::OutputFormat::Json => crate::output_formats::OutputFormat::Json,
+                    crate::cli::OutputFormat::Xml => crate::output_formats::OutputFormat::Xml,
+                    crate::cli::OutputFormat::Html => crate::output_formats::OutputFormat::Html,
+                    crate::cli::OutputFormat::Markdown => {
+                        crate::output_formats::OutputFormat::Markdown
+                    }
+                    crate::cli::OutputFormat::Csv => crate::output_formats::OutputFormat::Csv,
+                    crate::cli::OutputFormat::Tsv => crate::output_formats::OutputFormat::Tsv,
+                }
+            })
+            .with_ndjson(ndjson);
             let output = formatter.format_results(&all_matches, pattern, search_path);
 
-            if output_format == crate::cli::OutputFormat::Json {
+            if output_format == crate::cli::OutputFormat::Json || ndjson {
                 print!("{output}");
             } else {
                 println!("\n{output}");
@@ -614,10 +654,14 @@ impl RfgrepApp {
             if let Some(exts) = extensions {
                 if let Some(ext) = path.extension() {
                     if let Some(ext_str) = ext.to_str() {
-                        if !exts.iter().any(|e| e == ext_str) {
+                        if !exts.iter().any(|e| e.eq_ignore_ascii_case(ext_str)) {
                             return false;
                         }
+                    } else {
+                        return false;
                     }
+                } else {
+                    return false;
                 }
             }
 
