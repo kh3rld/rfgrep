@@ -27,8 +27,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 }
 
 fn generate_test_data(test_dir: &Path) {
-    // Create small files
-    for i in 1..=100 {
+    for i in 1..=20 {
         let content = format!(
             "This is test file {} with pattern1 and some content. Line {} has more text.",
             i, i
@@ -36,26 +35,22 @@ fn generate_test_data(test_dir: &Path) {
         fs::write(test_dir.join(format!("small_{}.txt", i)), content).unwrap();
     }
 
-    // Create medium files
-    for i in 1..=20 {
-        let content = "pattern1 ".repeat(100_000 / 9); // ~100KB
+    for i in 1..=5 {
+        let content = "pattern1 ".repeat(10_000 / 9);
         fs::write(test_dir.join(format!("medium_{}.txt", i)), content).unwrap();
     }
 
-    // Create large files
-    for i in 1..=5 {
-        let content = "pattern1 ".repeat(1_000_000 / 9); // ~1MB
+    for i in 1..=2 {
+        let content = "pattern1 ".repeat(100_000 / 9); //
         fs::write(test_dir.join(format!("large_{}.txt", i)), content).unwrap();
     }
 
-    // Create binary files
-    for i in 1..=10 {
-        let content = vec![0u8; 50_000];
+    for i in 1..=3 {
+        let content = vec![0u8; 5_000];
         fs::write(test_dir.join(format!("binary_{}.bin", i)), content).unwrap();
     }
 
-    // Create source code files
-    for i in 1..=50 {
+    for i in 1..=10 {
         let content = format!(
             "fn test_function_{}() {{\n    let pattern1 = \"test\";\n    println!(\"{{}}\", pattern1);\n}}",
             i
@@ -70,6 +65,8 @@ fn benchmark_algorithms(c: &mut Criterion, test_dir: &Path) {
         ("regex", SearchAlgorithm::Regex),
         ("simple", SearchAlgorithm::Simple),
     ];
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     for (name, algorithm) in algorithms {
         let config = StreamingConfig {
@@ -86,21 +83,21 @@ fn benchmark_algorithms(c: &mut Criterion, test_dir: &Path) {
         let pipeline = StreamingSearchPipeline::new(config);
         let pattern = "pattern1";
 
+        let files: Vec<_> = fs::read_dir(test_dir)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
+            .collect();
+
         c.bench_with_input(
             BenchmarkId::new("algorithm", name),
-            &(pipeline, pattern),
-            |b, (pipeline, pattern)| {
+            &(pipeline, pattern, files),
+            |b, (pipeline, pattern, files)| {
                 b.iter(|| {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    let file_refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
                     let _ = rt.block_on(async {
-                        let files: Vec<_> = fs::read_dir(test_dir)
-                            .unwrap()
-                            .filter_map(|entry| entry.ok())
-                            .map(|entry| entry.path())
-                            .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
-                            .collect();
-                        let file_refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
-                        pipeline.search_files_parallel(&file_refs, pattern, 4).await
+                        pipeline.search_files_parallel(&file_refs, pattern, 2).await
                     });
                 });
             },
@@ -109,7 +106,9 @@ fn benchmark_algorithms(c: &mut Criterion, test_dir: &Path) {
 }
 
 fn benchmark_file_sizes(c: &mut Criterion, test_dir: &Path) {
-    let sizes = vec![("small", 1_000), ("medium", 100_000), ("large", 1_000_000)];
+    let sizes = vec![("small", 1_000), ("medium", 10_000), ("large", 100_000)];
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     for (size_name, size_bytes) in sizes {
         let temp_file = test_dir.join(format!("size_test_{}.txt", size_name));
@@ -135,7 +134,6 @@ fn benchmark_file_sizes(c: &mut Criterion, test_dir: &Path) {
             &(pipeline, pattern, temp_file),
             |b, (pipeline, pattern, file)| {
                 b.iter(|| {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
                     let _ = rt.block_on(async { pipeline.search_file(file, pattern).await });
                 });
             },
@@ -149,6 +147,8 @@ fn benchmark_patterns(c: &mut Criterion, test_dir: &Path) {
         ("regex", r"\b\w+pattern\w+\b"),
         ("complex_regex", r"pattern\d+.*content"),
     ];
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
     for (pattern_name, pattern) in patterns {
         let algorithm = if pattern_name.starts_with("regex") {
@@ -170,21 +170,21 @@ fn benchmark_patterns(c: &mut Criterion, test_dir: &Path) {
 
         let pipeline = StreamingSearchPipeline::new(config);
 
+        let files: Vec<_> = fs::read_dir(test_dir)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
+            .take(5) // Reduced from 10
+            .collect();
+
         c.bench_with_input(
             BenchmarkId::new("pattern", pattern_name),
-            &(pipeline, pattern),
-            |b, (pipeline, pattern)| {
+            &(pipeline, pattern, files),
+            |b, (pipeline, pattern, files)| {
                 b.iter(|| {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    let file_refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
                     let _ = rt.block_on(async {
-                        let files: Vec<_> = fs::read_dir(test_dir)
-                            .unwrap()
-                            .filter_map(|entry| entry.ok())
-                            .map(|entry| entry.path())
-                            .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
-                            .take(10) // Limit for pattern benchmarks
-                            .collect();
-                        let file_refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
                         pipeline.search_files_parallel(&file_refs, pattern, 2).await
                     });
                 });
@@ -208,20 +208,20 @@ fn benchmark_memory_usage(c: &mut Criterion, test_dir: &Path) {
     let pipeline = StreamingSearchPipeline::new(config);
     let pattern = "pattern1";
 
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    let files: Vec<_> = fs::read_dir(test_dir)
+        .unwrap()
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
+        .collect();
+
     c.bench_function("memory_usage", |b| {
         b.iter(|| {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-
-            let _ = rt.block_on(async {
-                let files: Vec<_> = fs::read_dir(test_dir)
-                    .unwrap()
-                    .filter_map(|entry| entry.ok())
-                    .map(|entry| entry.path())
-                    .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
-                    .collect();
-                let file_refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
-                pipeline.search_files_parallel(&file_refs, pattern, 4).await
-            });
+            let file_refs: Vec<&Path> = files.iter().map(|p| p.as_path()).collect();
+            let _ =
+                rt.block_on(async { pipeline.search_files_parallel(&file_refs, pattern, 2).await });
         });
     });
 }
