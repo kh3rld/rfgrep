@@ -33,6 +33,18 @@ A command-line utility for recursively searching and listing files with advanced
   - Logging to file
   - Progress indicators
 
+- **Unix Pipeline Integration**
+  - Automatic quiet mode when piped
+  - Seamless integration with grep, awk, sed, xargs
+  - Count-only mode (`-c`)
+  - Files-with-matches mode (`-l`)
+
+- **Output Formats** (v0.4.0)
+  - CSV export for spreadsheet analysis
+  - TSV export for tab-separated data
+  - JSON, XML, HTML, Markdown formats
+  - NDJSON for streaming JSON
+
 <!-- ## Performance
 
 ![Benchmark Results](https://github.com/kh3rld/rfgrep/raw/main/benches/comparison.png)
@@ -279,21 +291,26 @@ rfgrep completions fish > ~/.config/fish/completions/rfgrep.fish
 
 ### Search Command
 
-| Option             | Description                         |
-|--------------------|-------------------------------------|
-| `--mode MODE`      | Search mode: regex/text/word        |
-| `--extensions EXT` | Comma-separated file extensions     |
-| `--max-size MB`    | Skip files larger than specified MB |
-| `--skip-binary`    | Skip binary files                   |
-| `--dry-run`        | Preview files without processing    |
-| `--copy`           | Copy results to clipboard           |
-| `--safety-policy`  | Safety policy: default/conservative/performance |
-| `--threads N`      | Number of threads for parallel processing |
-| `--file-types`     | File type strategy: default/comprehensive/conservative/performance |
-| `--include-extensions` | Override to include specific file types |
-| `--exclude-extensions` | Override to exclude specific file types |
-| `--search-all-files` | Search all file types (comprehensive mode) |
-| `--text-only`      | Only search text files (conservative mode) |
+| Option                       | Description                                                        |
+|------------------------------|--------------------------------------------------------------------|
+| `--mode MODE`                | Search mode: regex/text/word                                       |
+| `--extensions EXT`           | Comma-separated file extensions                                    |
+| `--max-size MB`              | Skip files larger than specified MB                                |
+| `--skip-binary`              | Skip binary files                                                  |
+| `--dry-run`                  | Preview files without processing                                   |
+| `--copy`                     | Copy results to clipboard                                          |
+| `--quiet`, `-q`              | Suppress non-essential output (v0.4.0)                             |
+| `--count`, `-c`              | Show only count of matches (v0.4.0)                                |
+| `--files-with-matches`, `-l` | Show only filenames with matches (v0.4.0)                          |
+| `--output-format`            | Output format: text/json/csv/tsv/xml/html/markdown                 |
+| `--ndjson`                   | Output newline-delimited JSON (v0.4.0)                             |
+| `--safety-policy`            | Safety policy: default/conservative/performance                    |
+| `--threads N`                | Number of threads for parallel processing                          |
+| `--file-types`               | File type strategy: default/comprehensive/conservative/performance |
+| `--include-extensions`       | Override to include specific file types                            |
+| `--exclude-extensions`       | Override to exclude specific file types                            |
+| `--search-all-files`         | Search all file types (comprehensive mode)                         |
+| `--text-only`                | Only search text files (conservative mode)                         |
 
 ### List Command
 
@@ -314,23 +331,62 @@ rfgrep completions fish > ~/.config/fish/completions/rfgrep.fish
 rfgrep search "HashMap" --extensions rs
 ```
 
-1. List all Markdown files under 1MB:
+2. List all Markdown files under 1MB:
 
 ```bash
 rfgrep list --extensions md --max-size 1
 ```
 
-1. Search with regex and copy to clipboard:
+3. Search with regex and copy to clipboard:
 
 ```bash
 rfgrep search "fn\s+\w+\s*\(" --mode regex --copy
+```
 
-# Advanced file type control
+4. **New in v0.4.0:** Count-only mode (like `grep -c`):
+
+```bash
+rfgrep search "error" --extensions log -c
+# Output: 42
+```
+
+5. **New in v0.4.0:** Files-with-matches mode (like `grep -l`):
+
+```bash
+rfgrep search "TODO" --extensions rs -l
+# Output: List of files containing TODO
+```
+
+6. **New in v0.4.0:** CSV export for analysis:
+
+```bash
+rfgrep search "HashMap" --extensions rs --output-format csv > results.csv
+```
+
+7. **New in v0.4.0:** Unix pipeline integration:
+
+```bash
+# Count matches per file
+rfgrep search "error" --output-format csv | awk -F',' 'NR>1 {print $1}' | sort | uniq -c
+
+# Process files with xargs
+rfgrep list --extensions rs | xargs wc -l
+
+# Filter with grep
+rfgrep search "function" | grep "async"
+```
+
+8. Advanced file type control:
+
+```bash
 rfgrep search "pattern" --file-types comprehensive --include-extensions pdf,docx
 rfgrep search "pattern" --text-only --safety-policy conservative
 rfgrep search "pattern" --threads 4 --safety-policy performance
+```
 
-# Simulation and benchmarking
+9. Simulation and benchmarking:
+
+```bash
 rfgrep simulate
 ```
 
@@ -361,6 +417,15 @@ rfgrep interactive "pattern" --extensions rs,py
 ```bash
 # JSON output for programmatic processing
 rfgrep search "pattern" --output-format json
+
+# NDJSON (newline-delimited JSON) for streaming
+rfgrep search "pattern" --ndjson
+
+# CSV output for spreadsheet analysis (v0.4.0)
+rfgrep search "pattern" --output-format csv
+
+# TSV output for tab-separated data (v0.4.0)
+rfgrep search "pattern" --output-format tsv
 
 # XML output for structured data
 rfgrep search "pattern" --output-format xml

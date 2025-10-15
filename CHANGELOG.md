@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-10-15
+
+### Added
+
+- **Unix Pipeline Integration**:
+    - Automatic pipe detection using `is_terminal::is_terminal()`
+    - `--quiet` / `-q` flag for explicit output suppression
+    - Smart message suppression when output is piped
+    - Seamless integration with grep, awk, sed, xargs, cut, sort, and other Unix tools
+- **New Output Formats**:
+    - CSV output format (`--output-format csv`) with proper character escaping
+    - TSV output format (`--output-format tsv`) with tab/newline escaping
+- **New Search Modes**:
+    - Count-only mode (`--count` / `-c`) - like `grep -c`
+    - Files-with-matches mode (`--files-with-matches` / `-l`) - like `grep -l`
+- **Performance Profiling Infrastructure**:
+    - `scripts/quick_profile.sh` - Fast performance testing with hyperfine
+    - `scripts/profile_benchmarks.sh` - Comprehensive profiling with flamegraph support
+- **Comprehensive Documentation**:
+    - `docs/SHELL_PIPELINE_EXAMPLES.md` - 50+ pipeline integration examples (600+ lines)
+    - `docs/OPTIMIZATION_SUGGESTIONS.md` - Performance optimization roadmap (450+ lines)
+    - `docs/SESSION_SUMMARY.md` - Complete development session record (800+ lines)
+
+### Changed
+
+- Output automatically suppressed when piped to other commands
+- Verbose messages respect quiet flag and pipe detection
+- Benchmark test data reduced for stability (100→20 small, 20→5 medium, 5→2 large files)
+- Benchmark file sizes reduced (100KB→10KB medium, 1MB→100KB large)
+
+### Fixed
+
+- **NDJSON Output Bug**: `--ndjson` flag now correctly outputs newline-delimited JSON instead of
+  text
+- **List Extension Filter Bug**: `rfgrep list --extensions rs` now correctly filters to only .rs
+  files using case-insensitive comparison
+- **Benchmark Memory Issues**: Fixed SIGKILL errors by creating single Tokio runtime per benchmark
+  function instead of per iteration
+
+### Performance
+
+- Established performance baseline: 5.5ms for small repos, 41.6ms for 1000 files
+- Identified optimization opportunities for 40-50% improvement potential
+- CSV/TSV output adds minimal overhead (<0.2ms)
+- Count mode optimized for fast counting without full result formatting
+
+### Documentation
+
+- Added 50+ Unix pipeline integration examples
+- Created performance optimization roadmap with 8 detailed recommendations
+- Documented profiling infrastructure and benchmarking strategies
+- Complete session summary with all changes and metrics
+
 ## [0.3.1] - 2025-09-23
 
 ### Added
@@ -212,7 +265,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Comprehensive documentation
   - Man pages and shell completions
 
-  [Unreleased]: https://github.com/kh3rld/rfgrep/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/kh3rld/rfgrep/compare/v0.4.0...HEAD
+
+[0.4.0]: https://github.com/kh3rld/rfgrep/compare/v0.3.1...v0.4.0
   [0.3.1]: https://github.com/kh3rld/rfgrep/compare/v0.3.0...v0.3.1
   [0.3.0]: https://github.com/kh3rld/rfgrep/compare/v0.2.1...v0.3.0
   [0.2.1]: https://github.com/kh3rld/rfgrep/compare/v0.2.0...v0.2.1

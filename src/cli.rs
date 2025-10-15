@@ -50,6 +50,16 @@ pub struct Cli {
     #[clap(long, value_parser, default_value_t = false, global = true)]
     pub verbose: bool,
 
+    /// Suppress all non-essential output (useful for piping)
+    #[clap(
+        long,
+        short = 'q',
+        value_parser,
+        default_value_t = false,
+        global = true
+    )]
+    pub quiet: bool,
+
     #[clap(long, value_enum, default_value_t = ColorChoice::Auto, global = true)]
     pub color: ColorChoice,
 
@@ -187,6 +197,14 @@ PERFORMANCE TIPS:
 
         #[clap(long, value_enum, default_value_t = SearchAlgorithm::BoyerMoore)]
         algorithm: SearchAlgorithm,
+
+        /// Only show count of matches, not the matches themselves
+        #[clap(long, short = 'c', value_parser, default_value_t = false)]
+        count: bool,
+
+        /// Only show filenames with matches, not the matches themselves
+        #[clap(long, short = 'l', value_parser, default_value_t = false)]
+        files_with_matches: bool,
 
         #[clap(value_parser, last = true)]
         path: Option<PathBuf>,
@@ -534,6 +552,8 @@ pub enum OutputFormat {
     Xml,
     Html,
     Markdown,
+    Csv,
+    Tsv,
 }
 
 impl fmt::Display for SearchMode {
