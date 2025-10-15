@@ -15,6 +15,13 @@ pub enum OutputFormat {
     Tsv,
 }
 
+/// Default implementation for OutputFormat
+impl Default for OutputFormat {
+    fn default() -> Self {
+        OutputFormat::Text
+    }
+}
+
 /// Output formatter for different formats
 #[allow(dead_code)]
 pub struct OutputFormatter {
@@ -23,6 +30,18 @@ pub struct OutputFormatter {
     include_context: bool,
     use_color: bool,
     ndjson: bool,
+}
+
+impl Default for OutputFormatter {
+    fn default() -> Self {
+        Self {
+            format: OutputFormat::default(),
+            include_metadata: true,
+            include_context: true,
+            use_color: is_terminal::is_terminal(&std::io::stdout()),
+            ndjson: false,
+        }
+    }
 }
 
 impl OutputFormatter {
