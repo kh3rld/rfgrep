@@ -64,9 +64,16 @@ fn main_inner() -> RfgrepResult<()> {
 
     let start_time = Instant::now();
 
-    let suppress_verbose = matches!(&cli.command, Commands::Search { output_format, .. } if output_format == &cli::OutputFormat::Json);
+    // Auto-detect if output is being piped
+    let is_piped = !is_terminal::is_terminal(&std::io::stdout());
 
-    if !suppress_verbose {
+    let suppress_verbose = cli.quiet
+        || is_piped
+        || matches!(&cli.command, Commands::Search { output_format, ndjson, .. } if output_format == &cli::OutputFormat::Json || *ndjson);
+
+    let verbose = cli.verbose;
+
+    if !suppress_verbose && verbose {
         println!("Application started with command: {:?}", cli.command);
     }
 
@@ -76,7 +83,7 @@ fn main_inner() -> RfgrepResult<()> {
         app.run(cli).await
     })?;
 
-    if !suppress_verbose {
+    if !suppress_verbose && verbose {
         println!(
             "Application finished. Total elapsed time: {:.2?}",
             start_time.elapsed()
