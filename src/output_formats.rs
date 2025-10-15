@@ -454,7 +454,7 @@ impl OutputFormatter {
     /// Format as CSV
     #[allow(dead_code)]
     fn format_csv(&self, matches: &[SearchMatch], _query: &str, _path: &Path) -> String {
-        let mut output = String::new();
+        let mut output = String::default();
         // CSV header
         output.push_str("file,line_number,column_start,column_end,matched_text,line_content\n");
 
@@ -474,7 +474,7 @@ impl OutputFormatter {
     /// Format as TSV
     #[allow(dead_code)]
     fn format_tsv(&self, matches: &[SearchMatch], _query: &str, _path: &Path) -> String {
-        let mut output = String::new();
+        let mut output = String::default();
         // TSV header
         output
             .push_str("file\tline_number\tcolumn_start\tcolumn_end\tmatched_text\tline_content\n");
