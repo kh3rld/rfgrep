@@ -36,7 +36,7 @@ fn run_readme_examples() -> Result<(), Box<dyn std::error::Error>> {
         .arg("bench_data")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Found"));
+        .stdout(predicate::str::contains("Total matches"));
 
     // 2: Search with Options (regex, extensions, max-size, skip-binary, copy)
     Command::new(&bin)
