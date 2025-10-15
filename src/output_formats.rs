@@ -11,6 +11,8 @@ pub enum OutputFormat {
     Xml,
     Html,
     Markdown,
+    Csv,
+    Tsv,
 }
 
 /// Output formatter for different formats
@@ -68,6 +70,8 @@ impl OutputFormatter {
             OutputFormat::Xml => self.format_xml(matches, query, path),
             OutputFormat::Html => self.format_html(matches, query, path),
             OutputFormat::Markdown => self.format_markdown(matches, query, path),
+            OutputFormat::Csv => self.format_csv(matches, query, path),
+            OutputFormat::Tsv => self.format_tsv(matches, query, path),
         }
     }
 
@@ -427,6 +431,65 @@ impl OutputFormatter {
 
         output
     }
+
+    /// Format as CSV
+    #[allow(dead_code)]
+    fn format_csv(&self, matches: &[SearchMatch], _query: &str, _path: &Path) -> String {
+        let mut output = String::new();
+        // CSV header
+        output.push_str("file,line_number,column_start,column_end,matched_text,line_content\n");
+
+        for m in matches {
+            let file = escape_csv(&m.path.to_string_lossy());
+            let line_content = escape_csv(&m.line);
+            let matched_text = escape_csv(&m.matched_text);
+            output.push_str(&format!(
+                "{},{},{},{},{},{}\n",
+                file, m.line_number, m.column_start, m.column_end, matched_text, line_content
+            ));
+        }
+
+        output
+    }
+
+    /// Format as TSV
+    #[allow(dead_code)]
+    fn format_tsv(&self, matches: &[SearchMatch], _query: &str, _path: &Path) -> String {
+        let mut output = String::new();
+        // TSV header
+        output
+            .push_str("file\tline_number\tcolumn_start\tcolumn_end\tmatched_text\tline_content\n");
+
+        for m in matches {
+            let file = escape_tsv(&m.path.to_string_lossy());
+            let line_content = escape_tsv(&m.line);
+            let matched_text = escape_tsv(&m.matched_text);
+            output.push_str(&format!(
+                "{}\t{}\t{}\t{}\t{}\t{}\n",
+                file, m.line_number, m.column_start, m.column_end, matched_text, line_content
+            ));
+        }
+
+        output
+    }
+}
+
+/// Escape CSV special characters
+#[allow(dead_code)]
+fn escape_csv(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
+        format!("\"{}\"", s.replace("\"", "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+/// Escape TSV special characters
+#[allow(dead_code)]
+fn escape_tsv(s: &str) -> String {
+    s.replace('\t', "\\t")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
 }
 
 /// Escape XML special characters
